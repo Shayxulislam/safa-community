@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary-navy: #052659;
+    --color-deep-navy: #021024;
+    --color-medium-blue: #5483B3;
+    --color-soft-blue: #7DA0CA;
+    --color-light-blue: #C1E8FF;
+    --color-canvas: #FFFFFF;
+    --color-text: #021024;
+    --color-muted: #5483B3;
+    --color-border: #C1E8FF;
+  }
+
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    scroll-behavior: smooth;
+    background-color: #FFFFFF;
+    color: #021024;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Playfair Display', 'Newsreader', Georgia, serif;
+    letter-spacing: -0.015em;
+  }
+
+  h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Accessible focus ring using the primary SAFA blue. */
+:focus-visible {
+  outline: 2px solid #5483B3;
+  outline-offset: 2px;
+}
+

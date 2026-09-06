@@ -1,0 +1,6 @@
+{
+  "name": "SAFA — Connecting Hands, Changing Lives",
+  "description": "SAFA is a youth-led community-support and charity platform in Uzbekistan connecting hands to change lives through real action, transparent contributions, and verified impact.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
