@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, ExternalLink, LogOut, ChevronDown, UserCheck, Key } from 'lucide-react';
+import { ShieldCheck, ExternalLink, LogOut, ChevronDown, UserCheck, Key, Menu } from 'lucide-react';
 import { User } from '../../types';
 import { ROLE_DETAILS, auth } from '../../services/auth';
 import { storage } from '../../services/storage';
@@ -10,12 +10,14 @@ interface AdminHeaderProps {
   currentUser: User;
   onUserSwitch: (user: User) => void;
   onLogout: () => void;
+  onMenuToggle: () => void;
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
   currentUser,
   onUserSwitch,
-  onLogout
+  onLogout,
+  onMenuToggle
 }) => {
   const allUsers = storage.getUsers();
   const roleMeta = ROLE_DETAILS[currentUser.role] || {
@@ -26,9 +28,17 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 bg-[#FDFCF9] border-b border-[#E5E0D5] px-4 sm:px-6 py-3 shadow-2xs">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-3 min-w-0">
         {/* Left: Brand & CMS Identifier */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            type="button"
+            onClick={onMenuToggle}
+            className="lg:hidden inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#E5E0D5] bg-white text-[#3D3B36] shrink-0"
+            aria-label="Open admin navigation"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <Link to="/" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#EBF3FC] border border-[#BFDBFE] flex items-center justify-center p-1">
               <SafaLogo variant="mark" size={22} color="#0056D2" />
@@ -47,7 +57,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           <div className="hidden md:block h-6 w-px bg-[#E5E0D5] mx-1" />
 
           {/* Quick Staff Switcher for demo & verification */}
-          <div className="flex items-center gap-2 bg-[#F1EDE4] px-3 py-1.5 rounded-xl border border-[#E5E0D5]">
+          <div className="hidden sm:flex items-center gap-2 bg-[#F1EDE4] px-3 py-1.5 rounded-xl border border-[#E5E0D5] max-w-[min(42vw,20rem)]">
             <span className="text-[11px] font-semibold text-[#6D6A61] hidden lg:inline">
               Simulate Account:
             </span>
@@ -58,7 +68,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                   const targetUser = allUsers.find(u => u.id === e.target.value);
                   if (targetUser) onUserSwitch(targetUser);
                 }}
-                className="bg-white text-xs font-semibold text-[#3D3B36] py-1 pl-2.5 pr-7 rounded-lg border border-[#E5E0D5] cursor-pointer outline-hidden focus:border-[#5E6E52]"
+                className="max-w-full bg-white text-xs font-semibold text-[#3D3B36] py-1 pl-2.5 pr-7 rounded-lg border border-[#E5E0D5] cursor-pointer outline-hidden focus:border-[#5E6E52]"
               >
                 {allUsers.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -73,7 +83,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         {/* Right: Current User Pill & Actions */}
         <div className="flex items-center gap-3">
           {/* Role badge pill */}
-          <div className="flex items-center gap-2.5 bg-[#F1EDE4] py-1.5 px-3 rounded-full border border-[#E5E0D5]">
+          <div className="hidden sm:flex items-center gap-2.5 bg-[#F1EDE4] py-1.5 px-3 rounded-full border border-[#E5E0D5] max-w-[min(42vw,20rem)]">
             {currentUser.role === 'super_admin' ? (
               <img
                 src="/ceo.png"
@@ -88,7 +98,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             )}
             <div className="text-left leading-none">
               <div className="text-xs font-bold text-[#3D3B36] flex items-center gap-1.5">
-                <span>{currentUser.name}</span>
+                <span className="truncate max-w-[8rem]">{currentUser.name}</span>
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${roleMeta.badgeColor}`}>
                   {roleMeta.title}
                 </span>
@@ -110,7 +120,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           {/* Sign Out */}
           <button
             onClick={onLogout}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E0D5] text-xs font-semibold text-red-700 hover:bg-red-50 hover:border-red-200 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E0D5] text-xs font-semibold text-red-700 hover:bg-red-50 hover:border-red-200 transition-colors shrink-0"
             title="Log Out"
           >
             <LogOut className="w-3.5 h-3.5" />

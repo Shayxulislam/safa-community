@@ -144,7 +144,7 @@ export const Navbar: React.FC = () => {
           </Link>
 
           {/* Desktop Nav Items */}
-          <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5">
+          <nav className="hidden xl:flex items-center gap-1 xl:gap-1.5">
             {navLinks.map(link => {
               const isActive = location.pathname === link.path;
               return (
@@ -164,7 +164,7 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* Right Action Buttons */}
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden xl:flex items-center gap-3">
             <Link to="/volunteer">
               <Button variant="outline" size="sm">
                 Volunteer
@@ -180,7 +180,7 @@ export const Navbar: React.FC = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="lg:hidden p-2.5 rounded-xl text-[#3D3B36] hover:bg-[#F1EDE4] focus-visible:outline-[#5E6E52]"
+            className="xl:hidden p-2.5 rounded-xl text-[#3D3B36] hover:bg-[#F1EDE4] focus-visible:outline-[#5E6E52]"
             aria-label="Toggle Navigation Menu"
             aria-expanded={isOpen}
           >
@@ -191,7 +191,7 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile Drawer Menu */}
       {isOpen && (
-        <div className="lg:hidden bg-[#FDFCF9] border-b border-[#E5E0D5] shadow-xl px-4 pt-3 pb-6 animate-in slide-in-from-top-2 duration-150">
+        <div className="xl:hidden max-h-[calc(100vh-8rem)] overflow-y-auto bg-[#FDFCF9] border-b border-[#E5E0D5] shadow-xl px-4 pt-3 pb-6 animate-in slide-in-from-top-2 duration-150">
           <div className="space-y-1">
             {navLinks.map(link => {
               const isActive = location.pathname === link.path;

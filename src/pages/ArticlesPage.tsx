@@ -151,12 +151,12 @@ export const ArticlesPage: React.FC = () => {
                       <span className="font-medium">{article.author}</span>
                     </div>
 
-                    <button
-                      onClick={() => setActiveArticle(article)}
+                    <Link
+                      to={`/articles/${article.slug}`}
                       className="inline-flex items-center gap-1 text-xs font-bold text-[#5E6E52] hover:text-[#3D3B36] transition-colors"
                     >
                       Read Full Article <ChevronRight className="w-4 h-4" />
-                    </button>
+                    </Link>
                   </div>
                 </div>
               </Card>

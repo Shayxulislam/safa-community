@@ -49,7 +49,7 @@ export const Modal: React.FC<ModalProps> = ({
       onClick={onClose}
     >
       <div
-        className={`bg-white rounded-2xl border border-[#E5E0D5] shadow-xl w-full ${widthClass} overflow-hidden max-h-[90vh] flex flex-col`}
+        className={`bg-white rounded-2xl border border-[#E5E0D5] shadow-xl w-full max-w-[calc(100vw-2rem)] ${widthClass} overflow-hidden max-h-[90vh] flex flex-col`}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E0D5]">
@@ -64,7 +64,7 @@ export const Modal: React.FC<ModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto text-[#3D3B36]">{children}</div>
+        <div className="p-4 sm:p-6 overflow-y-auto text-[#3D3B36] min-w-0">{children}</div>
       </div>
     </div>
   );

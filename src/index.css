@@ -18,6 +18,22 @@
     scroll-behavior: smooth;
     background-color: #FFFFFF;
     color: #021024;
+    overflow-x: hidden;
+  }
+
+  body {
+    min-width: 320px;
+    overflow-x: hidden;
+  }
+
+  img, video, iframe {
+    max-width: 100%;
+  }
+
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
   }
 
   h1, h2, h3 {

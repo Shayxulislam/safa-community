@@ -434,7 +434,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
         onClose={() => setIsEditorOpen(false)}
         title={editingArticleId ? 'Edit Article' : 'Create New Article'}
       >
-        <div className="space-y-4 text-left text-xs max-h-[80vh] overflow-y-auto pr-1">
+        <div className="space-y-4 text-left text-xs max-h-[80vh] overflow-y-auto pr-1 min-w-0">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36] mb-1">
               Article Title *
@@ -549,7 +549,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
           </div>
 
           {/* Workflow Action Buttons */}
-          <div className="pt-4 border-t border-[#E5E0D5] flex flex-wrap items-center justify-end gap-2">
+          <div className="pt-4 border-t border-[#E5E0D5] flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-end gap-2">
             <Button
               type="button"
               variant="outline"

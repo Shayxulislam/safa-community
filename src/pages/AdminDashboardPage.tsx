@@ -26,6 +26,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(auth.getCurrentUser());
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!auth.isAuthenticated()) {
@@ -63,19 +64,30 @@ export const AdminDashboardPage: React.FC = () => {
         currentUser={currentUser}
         onUserSwitch={handleUserSwitch}
         onLogout={handleLogout}
+        onMenuToggle={() => setIsSidebarOpen(prev => !prev)}
       />
 
       {/* Main Admin App Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="relative flex-1 flex min-h-0 overflow-hidden">
+        {isSidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close admin navigation"
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 z-30 bg-[#021024]/40 lg:hidden"
+          />
+        )}
         {/* Left Role-Aware Navigation Sidebar */}
         <AdminSidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
           currentUser={currentUser}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
         />
 
         {/* Dynamic CMS Tab Viewport */}
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8 max-w-7xl">
+        <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
           {activeTab === 'overview' && (
             <AdminOverviewTab
               key={refreshKey}

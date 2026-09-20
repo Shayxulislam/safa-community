@@ -47,12 +47,16 @@ interface AdminSidebarProps {
   activeTab: AdminTab;
   onTabChange: (tab: AdminTab) => void;
   currentUser: User;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   activeTab,
   onTabChange,
-  currentUser
+  currentUser,
+  isOpen = false,
+  onClose
 }) => {
   const articlesCount = storage.getArticles().filter(a => a.status === 'submitted' || a.status === 'under_review').length;
   const volunteersCount = storage.getVolunteers().filter(v => v.status === 'new').length;
@@ -205,8 +209,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     }
   ];
 
+  const handleTabChange = (tab: AdminTab) => {
+    onTabChange(tab);
+    onClose?.();
+  };
+
   return (
-    <aside className="w-64 bg-[#FDFCF9] border-r border-[#E5E0D5] flex flex-col shrink-0 min-h-[calc(100vh-65px)] text-left">
+    <aside className={`fixed inset-y-0 left-0 z-40 w-[min(18rem,calc(100vw-1rem))] bg-[#FDFCF9] border-r border-[#E5E0D5] flex flex-col text-left shadow-xl transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:translate-x-0 lg:shadow-none lg:min-h-[calc(100vh-65px)] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="p-4 space-y-6 flex-1 overflow-y-auto">
         {sections.map((sec, secIdx) => {
           return (
@@ -230,7 +239,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   return (
                     <button
                       key={item.id}
-                      onClick={() => hasAccess && onTabChange(item.id)}
+                      onClick={() => hasAccess && handleTabChange(item.id)}
                       disabled={!hasAccess}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                         isActive

@@ -99,13 +99,12 @@ export const EventsPage: React.FC = () => {
 
               <div className="pt-3 border-t border-[#E5E0D5] flex items-center justify-between">
                 {evt.registrationUrl ? (
-                  <a
-                    href={evt.registrationUrl}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5E6E52] hover:underline"
-                  >
-                    <span>Register / Details</span>
+                  <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-[#5E6E52]">
+                    <Link to={`/events/${evt.slug}`} className="inline-flex items-center gap-1.5 hover:underline"><span>Details</span>
                     <ArrowRight className="w-3.5 h-3.5" />
-                  </a>
+                    </Link>
+                    <a href={evt.registrationUrl} className="hover:underline">Register</a>
+                  </div>
                 ) : (
                   <Link
                     to="/volunteer"

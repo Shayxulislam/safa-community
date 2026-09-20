@@ -15,6 +15,7 @@ import {
 import { storage } from '../services/storage';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { SeoHead, SITE_URL } from '../components/SeoHead';
 
 export const WorkDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -54,6 +55,22 @@ export const WorkDetailPage: React.FC = () => {
 
   return (
     <div className="py-12 sm:py-16 bg-[#F8FAFC]">
+      <SeoHead
+        title={`${item.title} | SAFA`}
+        description={item.summary}
+        path={`/work/${item.slug}`}
+        image={item.coverImage}
+        schema={{
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: item.title,
+          description: item.summary,
+          image: item.coverImage,
+          datePublished: item.publishedAt || item.eventDate,
+          publisher: { '@type': 'Organization', name: 'SAFA', url: `${SITE_URL}/` },
+          mainEntityOfPage: `${SITE_URL}/work/${item.slug}`
+        }}
+      />
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-left">
         {/* Navigation back */}
         <div className="mb-8 flex items-center justify-between">
