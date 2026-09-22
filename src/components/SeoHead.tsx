@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 
 const SITE_URL = 'https://safa-community.vercel.app';
 const DEFAULT_DESCRIPTION = 'SAFA is a youth-led community-support initiative in Uzbekistan connecting people who want to help with communities and families in need.';
@@ -23,7 +23,7 @@ function setMeta(attribute: 'name' | 'property', key: string, content: string) {
   element.content = content;
 }
 
-export const SeoHead: React.FC<SeoHeadProps> = ({
+export function SeoHead({
   title,
   description = DEFAULT_DESCRIPTION,
   path = '/',
@@ -31,7 +31,7 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
   type = 'website',
   schema,
   noindex = false
-}) => {
+}: SeoHeadProps) {
   useEffect(() => {
     const canonicalUrl = `${SITE_URL}${path}`;
     const imageUrl = image.startsWith('http') ? image : `${SITE_URL}${image}`;

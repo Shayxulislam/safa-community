@@ -318,7 +318,7 @@ export const AdminTeamTab: React.FC<AdminTeamTabProps> = ({
                           onClick={() => {
                             setEditingUser(user);
                             setEditRole(user.role);
-                            setEditStatus(user.status || 'active');
+                            setEditStatus(user.status === 'pending_invitation' ? 'disabled' : (user.status || 'active'));
                             setEditPerms(user.customPermissions || {});
                           }}
                           className="p-1.5 rounded-lg hover:bg-[#F1EDE4] text-[#6D6A61] hover:text-[#3D3B36]"

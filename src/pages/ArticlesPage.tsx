@@ -222,16 +222,25 @@ export const ArticlesPage: React.FC = () => {
                   Associated Field Video
                 </h4>
                 <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
-                  <iframe
-                    src={
-                      activeArticle.videoUrl.includes('watch?v=')
-                        ? activeArticle.videoUrl.replace('watch?v=', 'embed/')
-                        : activeArticle.videoUrl
-                    }
-                    title={activeArticle.title}
-                    className="w-full h-full"
-                    allowFullScreen
-                  />
+                  {activeArticle.videoUrl.startsWith('data:video/') ? (
+                    <video
+                      src={activeArticle.videoUrl}
+                      title={activeArticle.title}
+                      className="w-full h-full object-contain"
+                      controls
+                    />
+                  ) : (
+                    <iframe
+                      src={
+                        activeArticle.videoUrl.includes('watch?v=')
+                          ? activeArticle.videoUrl.replace('watch?v=', 'embed/')
+                          : activeArticle.videoUrl
+                      }
+                      title={activeArticle.title}
+                      className="w-full h-full"
+                      allowFullScreen
+                    />
+                  )}
                 </div>
               </div>
             )}

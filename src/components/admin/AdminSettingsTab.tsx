@@ -213,7 +213,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                   value={link.platform}
                   onChange={e => {
                     const updated = [...socialsList];
-                    updated[idx].platform = e.target.value;
+                    updated[idx].platform = e.target.value as SocialLink['platform'];
                     setSocialsList(updated);
                   }}
                   className="w-full px-2.5 py-1.5 border rounded-lg border-[#E5E0D5] bg-white font-semibold"

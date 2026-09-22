@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Newspaper,
   Plus,
@@ -14,7 +14,10 @@ import {
   ExternalLink,
   MessageSquare,
   FileCheck,
-  RotateCcw
+  RotateCcw,
+  Camera,
+  Paperclip,
+  X
 } from 'lucide-react';
 import { Article, User, ContentWorkflowStatus } from '../../types';
 import { storage } from '../../services/storage';
@@ -54,9 +57,12 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
   const [excerpt, setExcerpt] = useState('');
   const [content, setContent] = useState('');
   const [coverImage, setCoverImage] = useState('');
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [videoUrl, setVideoUrl] = useState('');
   const [tagsInput, setTagsInput] = useState('Community, Youth, Field Report');
   const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -73,6 +79,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
     setExcerpt('');
     setContent('');
     setCoverImage('');
+    setGalleryImages([]);
     setVideoUrl('');
     setTagsInput('Community, Youth, Field Report');
     setIsEditorOpen(true);
@@ -86,9 +93,53 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
     setExcerpt(art.excerpt);
     setContent(art.content);
     setCoverImage(art.coverImage);
+    setGalleryImages([art.coverImage, ...(art.galleryImages || [])].filter(Boolean));
     setVideoUrl(art.videoUrl || '');
     setTagsInput(art.tags.join(', '));
     setIsEditorOpen(true);
+  };
+
+  const readFileAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Could not read this file.'));
+    reader.readAsDataURL(file);
+  });
+
+  const handleImageSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []).slice(0, 10 - galleryImages.length - (coverImage ? 1 : 0));
+    if (!files.length) return;
+
+    try {
+      const images = await Promise.all(files.map(readFileAsDataUrl));
+      setCoverImage(current => current || images[0]);
+      setGalleryImages(current => [...current, ...images].slice(0, 10));
+      showNotice(`${images.length} photo${images.length === 1 ? '' : 's'} added to the post.`);
+    } catch {
+      showNotice('That photo could not be added. Please try another file.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const handleVideoSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setVideoUrl(await readFileAsDataUrl(file));
+      showNotice('Video added to the post.');
+    } catch {
+      showNotice('That video could not be added. Please try another file.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const removeImage = (image: string) => {
+    const remaining = galleryImages.filter(item => item !== image);
+    setGalleryImages(remaining);
+    setCoverImage(current => current === image ? (remaining[0] || '') : current);
   };
 
   const handleSaveArticle = (targetStatus: ContentWorkflowStatus) => {
@@ -117,7 +168,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
       excerpt: excerpt.trim(),
       content: content.trim(),
       coverImage,
-      galleryImages: existing?.galleryImages || [],
+      galleryImages: galleryImages.filter(image => image !== coverImage),
       videoUrl: videoUrl.trim() || undefined,
       tags,
       author: existing?.author || currentUser.name,
@@ -507,32 +558,60 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36] mb-1">
-                Cover Image URL
-              </label>
-              <input
-                type="text"
-                placeholder="Upload an authentic SAFA image URL"
-                value={coverImage}
-                onChange={e => setCoverImage(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-[#E5E0D5] bg-white text-[#3D3B36] outline-hidden focus:border-[#5E6E52]"
-              />
+          <div className="rounded-2xl border border-[#E5E0D5] bg-[#FDFCF9] p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36]">
+                  Post media
+                </label>
+                <p className="text-[11px] text-[#6D6A61] mt-1">Choose photos or a video from this device. No links needed.</p>
+              </div>
+              <span className="text-[10px] font-semibold text-[#6D6A61]">{galleryImages.length}/10 photos</span>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36] mb-1">
-                Optional Field Video (YouTube URL)
-              </label>
-              <input
-                type="text"
-                placeholder="https://www.youtube.com/watch?v=..."
-                value={videoUrl}
-                onChange={e => setVideoUrl(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-[#E5E0D5] bg-white text-[#3D3B36] outline-hidden focus:border-[#5E6E52]"
-              />
+            <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageSelection} className="hidden" />
+            <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoSelection} className="hidden" />
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={galleryImages.length >= 10}
+                className="inline-flex items-center gap-2 rounded-xl border border-[#5E6E52]/30 bg-[#5E6E52]/10 px-3 py-2 text-xs font-bold text-[#5E6E52] hover:bg-[#5E6E52]/20 disabled:opacity-50"
+              >
+                <Camera className="w-4 h-4" /> Add photos
+              </button>
+              <button
+                type="button"
+                onClick={() => videoInputRef.current?.click()}
+                className="inline-flex items-center gap-2 rounded-xl border border-[#B06D50]/30 bg-[#B06D50]/10 px-3 py-2 text-xs font-bold text-[#B06D50] hover:bg-[#B06D50]/20"
+              >
+                <Video className="w-4 h-4" /> Add video
+              </button>
             </div>
+
+            {(galleryImages.length > 0 || videoUrl) && (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-1">
+                {galleryImages.map((image, index) => (
+                  <div key={`${image.slice(0, 20)}-${index}`} className="relative aspect-square rounded-xl overflow-hidden bg-[#F1EDE4] border border-[#E5E0D5]">
+                    <img src={image} alt={`Post photo ${index + 1}`} className="w-full h-full object-cover" />
+                    {index === 0 && <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white">Cover</span>}
+                    <button type="button" onClick={() => removeImage(image)} aria-label={`Remove photo ${index + 1}`} className="absolute top-1 right-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                {videoUrl && (
+                  <div className="relative aspect-square rounded-xl overflow-hidden bg-[#1F2933] border border-[#E5E0D5]">
+                    <video src={videoUrl} className="w-full h-full object-cover" muted />
+                    <span className="absolute inset-x-1 bottom-1 rounded bg-black/60 px-1.5 py-0.5 text-center text-[9px] font-bold text-white">Video attached</span>
+                    <button type="button" onClick={() => setVideoUrl('')} aria-label="Remove video" className="absolute top-1 right-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
