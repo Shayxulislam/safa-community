@@ -23,13 +23,20 @@ export const ContactPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await fetch('/api/v1/contact', {
+      const response = await fetch('/api/v1/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, subject, message })
       });
+
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error || 'Your message could not be delivered.');
+      }
     } catch {
-      // Offline / network fallback
+      setIsSubmitting(false);
+      alert('Your message could not be delivered. Please try again later.');
+      return;
     }
 
     storage.addContactMessage({ name, email, subject, message });

@@ -16,7 +16,8 @@ import {
   Building2,
   Calendar,
   HeartHandshake,
-  MessageSquare
+  MessageSquare,
+  ImageIcon
 } from 'lucide-react';
 import { User } from '../../types';
 import { storage } from '../../services/storage';
@@ -57,36 +58,54 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
 
   return (
     <div className="space-y-8 text-left">
-      {/* Welcome Banner */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-[#5E6E52] text-[#FDFCF9] flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xs">
+      {/* Plain-language starting point for staff who only visit occasionally. */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-[#5E6E52] text-[#FDFCF9] space-y-6 shadow-xs">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-white text-xs font-semibold uppercase tracking-wider">
             <ShieldCheck className="w-4 h-4" />
             <span>SAFA Admin Management & CMS</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-white">
-            Welcome back, {currentUser.name}
+            Welcome to SAFA, {currentUser.name}
           </h1>
-          <p className="text-xs sm:text-sm text-white/85 max-w-xl">
-            You are authenticated as <strong>{ROLE_DETAILS[currentUser.role]?.title}</strong>.
-            {canPublish
-              ? ' You have full editorial approval & direct publication privileges.'
-              : ' Content you create follows the "Draft → Review → Publish" workflow to guarantee quality.'}
+          <p className="text-sm text-white/90 max-w-xl">
+            What would you like to do today? You do not need to know how the website works.
           </p>
         </div>
 
-        {/* Quick action shortcuts */}
-        <div className="flex flex-wrap gap-2.5 shrink-0">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {canCreate && (
-            <Button
-              variant="secondary"
-              size="sm"
+            <button
+              type="button"
               onClick={() => onNavigateTab('articles')}
-              icon={<Plus className="w-4 h-4" />}
+              className="p-4 rounded-2xl bg-white text-left text-[#3D3B36] hover:bg-[#FDFCF9] transition-colors focus-visible:outline-white"
             >
-              New Article
-            </Button>
+              <Plus className="w-5 h-5 text-[#5E6E52] mb-3" />
+              <span className="block font-bold">Write a new story</span>
+              <span className="block text-xs text-[#6D6A61] mt-1">Tell people what happened.</span>
+            </button>
           )}
+          <button
+            type="button"
+            onClick={() => onNavigateTab('media')}
+            className="p-4 rounded-2xl bg-white text-left text-[#3D3B36] hover:bg-[#FDFCF9] transition-colors focus-visible:outline-white"
+          >
+            <ImageIcon className="w-5 h-5 text-[#B06D50] mb-3" />
+            <span className="block font-bold">Add photos</span>
+            <span className="block text-xs text-[#6D6A61] mt-1">Choose photos from your device.</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigateTab('events')}
+            className="p-4 rounded-2xl bg-white text-left text-[#3D3B36] hover:bg-[#FDFCF9] transition-colors focus-visible:outline-white"
+          >
+            <Calendar className="w-5 h-5 text-[#5E6E52] mb-3" />
+            <span className="block font-bold">Manage events</span>
+            <span className="block text-xs text-[#6D6A61] mt-1">Create or update an event.</span>
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2.5 shrink-0">
           {isSuperAdmin && (
             <Button
               variant="outline"
@@ -95,7 +114,7 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
               className="bg-white/10 text-white border-white/30 hover:bg-white/20"
               icon={<Plus className="w-4 h-4" />}
             >
-              Invite Admin
+              Invite a team member
             </Button>
           )}
         </div>

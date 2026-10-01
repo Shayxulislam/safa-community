@@ -45,12 +45,9 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             </div>
             <div className="hidden sm:block text-left">
               <div className="flex items-center gap-1.5 leading-none">
-                <span className="font-serif font-black text-base text-[#172033]">SAFA CMS</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-[#EBF3FC] text-[#0056D2]">
-                  v2.0
-                </span>
+                <span className="font-serif font-black text-base text-[#172033]">SAFA</span>
               </div>
-              <p className="text-[11px] text-[#64748B] mt-0.5">Admin Management System</p>
+              <p className="text-[11px] text-[#64748B] mt-0.5">Staff area</p>
             </div>
           </Link>
 

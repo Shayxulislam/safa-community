@@ -73,7 +73,7 @@ function RouteSeo() {
     '@graph': [
       { '@type': 'Organization', name: 'SAFA', url: 'https://safa-community.vercel.app/', logo: 'https://safa-community.vercel.app/safa-logo.svg' },
       { '@type': 'WebSite', name: 'SAFA', url: 'https://safa-community.vercel.app/' },
-      { '@type': 'BreadcrumbList', itemListElement: pathname === '/' ? [] : [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://safa-community.vercel.app/' }, { '@type': 'ListItem', position: 2, name: title.replace(' | SAFA', ''), item: `https://safa-community.vercel.app${pathname}` }] }
+      { '@type': 'BreadcrumbList', itemListElement: pathname === '/' ? [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://safa-community.vercel.app/' }] : [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://safa-community.vercel.app/' }, { '@type': 'ListItem', position: 2, name: title.replace(' | SAFA', ''), item: `https://safa-community.vercel.app${pathname}` }] }
     ]
   };
   return <SeoHead title={title} path={pathname} schema={schema} noindex={noindex} />;

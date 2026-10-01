@@ -75,40 +75,40 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const sections: { title: string; items: NavItem[] }[] = [
     {
-      title: 'DASHBOARD',
+      title: 'START HERE',
       items: [
         {
           id: 'overview',
-          label: 'Overview',
+          label: 'Home',
           icon: <LayoutDashboard className="w-4 h-4" />
         }
       ]
     },
     {
-      title: 'CONTENT & EDITORIAL',
+      title: 'SHARE WITH THE COMMUNITY',
       items: [
         {
           id: 'articles',
-          label: 'Articles & News',
+          label: 'Stories',
           icon: <Newspaper className="w-4 h-4" />,
           requiredPermission: 'content.create',
           badge: articlesCount > 0 ? articlesCount : undefined
         },
         {
           id: 'projects',
-          label: 'Field Projects',
+          label: 'Projects',
           icon: <FolderHeart className="w-4 h-4" />,
           requiredPermission: 'work.create'
         },
         {
           id: 'events',
-          label: 'Community Events',
+          label: 'Events',
           icon: <Calendar className="w-4 h-4" />,
           requiredPermission: 'work.create'
         },
         {
           id: 'stories',
-          label: 'Human Stories',
+          label: 'People stories',
           icon: <BookOpen className="w-4 h-4" />,
           requiredPermission: 'stories.create'
         },
@@ -121,18 +121,18 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       ]
     },
     {
-      title: 'MEDIA ASSETS',
+      title: 'PHOTOS & VIDEOS',
       items: [
         {
           id: 'media',
-          label: 'Media Library',
+          label: 'Photos and videos',
           icon: <ImageIcon className="w-4 h-4" />,
           requiredPermission: 'media.upload'
         }
       ]
     },
     {
-      title: 'COMMUNITY & OPERATIONS',
+      title: 'PEOPLE',
       items: [
         {
           id: 'volunteers',
@@ -143,20 +143,20 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         },
         {
           id: 'contacts',
-          label: 'Inquiries',
+          label: 'Messages',
           icon: <MessageSquare className="w-4 h-4" />,
           requiredPermission: 'messages.view',
           badge: contactsCount > 0 ? contactsCount : undefined
         },
         {
           id: 'donations',
-          label: 'Donation Campaigns',
+          label: 'Donation campaigns',
           icon: <HeartHandshake className="w-4 h-4" />,
           requiredPermission: 'contributions.manage'
         },
         {
           id: 'finance',
-          label: 'Finance & Ledger',
+          label: 'Money received',
           icon: <Landmark className="w-4 h-4" />,
           requiredPermission: 'contributions.view'
         },
@@ -169,39 +169,39 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       ]
     },
     {
-      title: 'CHANNELS & ORGANIZATION',
+      title: 'SAFA INFORMATION',
       items: [
         {
           id: 'social',
-          label: 'Official Channels',
+          label: 'Official links',
           icon: <Share2 className="w-4 h-4" />,
           requiredPermission: 'settings.manage'
         },
         {
           id: 'organization',
-          label: 'Founder & SAFA Profile',
+          label: 'SAFA profile',
           icon: <Building2 className="w-4 h-4" />,
           requiredPermission: 'settings.manage'
         }
       ]
     },
     {
-      title: 'GOVERNANCE & ACCESS',
+      title: 'TEAM & SETTINGS',
       items: [
         {
           id: 'team',
-          label: 'Team & Admins',
+          label: 'Team members',
           icon: <ShieldAlert className="w-4 h-4" />,
           superAdminOnly: true
         },
         {
           id: 'audit',
-          label: 'Audit Trail',
+          label: 'Activity history',
           icon: <History className="w-4 h-4" />
         },
         {
           id: 'settings',
-          label: 'System Settings',
+          label: 'Settings',
           icon: <Settings className="w-4 h-4" />,
           requiredPermission: 'settings.manage'
         }

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Newspaper,
   Plus,
@@ -30,6 +30,59 @@ interface AdminArticlesTabProps {
   currentUser: User;
   onRefresh: () => void;
 }
+
+const STORY_DRAFT_KEY = 'safa_story_editor_draft';
+const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
+const MAX_VIDEO_SIZE_BYTES = 25 * 1024 * 1024;
+
+const getDraftState = () => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(STORY_DRAFT_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as {
+      title: string;
+      category: string;
+      location: string;
+      excerpt: string;
+      content: string;
+      coverImage: string;
+      galleryImages: string[];
+      videoUrl: string;
+      tagsInput: string;
+      editingArticleId: string | null;
+    };
+  } catch {
+    return null;
+  }
+};
+
+const clearDraftState = () => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(STORY_DRAFT_KEY);
+};
+
+const persistDraftState = (draft: {
+  title: string;
+  category: string;
+  location: string;
+  excerpt: string;
+  content: string;
+  coverImage: string;
+  galleryImages: string[];
+  videoUrl: string;
+  tagsInput: string;
+  editingArticleId: string | null;
+}) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(STORY_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Ignore localStorage quota failures so the editor keeps working.
+  }
+};
 
 export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
   currentUser,
@@ -66,22 +119,110 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
 
   const [notice, setNotice] = useState<string | null>(null);
 
+  const hasEditorDraft = () => {
+    return Boolean(
+      title.trim() ||
+      content.trim() ||
+      excerpt.trim() ||
+      coverImage ||
+      galleryImages.length > 0 ||
+      videoUrl ||
+      tagsInput.trim() !== 'Community, Youth, Field Report' ||
+      location.trim() !== 'Tashkent, Uzbekistan'
+    );
+  };
+
+  useEffect(() => {
+    if (!isEditorOpen) return;
+
+    const draft = {
+      title,
+      category,
+      location,
+      excerpt,
+      content,
+      coverImage,
+      galleryImages,
+      videoUrl,
+      tagsInput,
+      editingArticleId
+    };
+
+    if (hasEditorDraft()) {
+      persistDraftState(draft);
+    } else {
+      clearDraftState();
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (hasEditorDraft()) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isEditorOpen, title, category, location, excerpt, content, coverImage, galleryImages, videoUrl, tagsInput, editingArticleId]);
+
+  const restoreDraftIntoForm = () => {
+    const draft = getDraftState();
+    if (!draft) {
+      setTitle('');
+      setCategory('Field Updates');
+      setLocation('Tashkent, Uzbekistan');
+      setExcerpt('');
+      setContent('');
+      setCoverImage('');
+      setGalleryImages([]);
+      setVideoUrl('');
+      setTagsInput('Community, Youth, Field Report');
+      setEditingArticleId(null);
+      return;
+    }
+
+    setTitle(draft.title || '');
+    setCategory(draft.category || 'Field Updates');
+    setLocation(draft.location || 'Tashkent, Uzbekistan');
+    setExcerpt(draft.excerpt || '');
+    setContent(draft.content || '');
+    setCoverImage(draft.coverImage || '');
+    setGalleryImages(draft.galleryImages || []);
+    setVideoUrl(draft.videoUrl || '');
+    setTagsInput(draft.tagsInput || 'Community, Youth, Field Report');
+    setEditingArticleId(draft.editingArticleId || null);
+  };
+
   const showNotice = (msg: string) => {
     setNotice(msg);
     setTimeout(() => setNotice(null), 3500);
   };
 
   const openNewArticleModal = () => {
-    setEditingArticleId(null);
-    setTitle('');
-    setCategory('Field Updates');
-    setLocation('Tashkent, Uzbekistan');
-    setExcerpt('');
-    setContent('');
-    setCoverImage('');
-    setGalleryImages([]);
-    setVideoUrl('');
-    setTagsInput('Community, Youth, Field Report');
+    const draft = getDraftState();
+    if (draft) {
+      setEditingArticleId(draft.editingArticleId || null);
+      setTitle(draft.title || '');
+      setCategory(draft.category || 'Field Updates');
+      setLocation(draft.location || 'Tashkent, Uzbekistan');
+      setExcerpt(draft.excerpt || '');
+      setContent(draft.content || '');
+      setCoverImage(draft.coverImage || '');
+      setGalleryImages(draft.galleryImages || []);
+      setVideoUrl(draft.videoUrl || '');
+      setTagsInput(draft.tagsInput || 'Community, Youth, Field Report');
+    } else {
+      setEditingArticleId(null);
+      setTitle('');
+      setCategory('Field Updates');
+      setLocation('Tashkent, Uzbekistan');
+      setExcerpt('');
+      setContent('');
+      setCoverImage('');
+      setGalleryImages([]);
+      setVideoUrl('');
+      setTagsInput('Community, Youth, Field Report');
+    }
     setIsEditorOpen(true);
   };
 
@@ -106,17 +247,36 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
     reader.readAsDataURL(file);
   });
 
+  const validateImageFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      throw new Error('Only image files are allowed.');
+    }
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      throw new Error('This photo is too large. Please choose a file under 8MB.');
+    }
+  };
+
+  const validateVideoFile = (file: File) => {
+    if (!file.type.startsWith('video/')) {
+      throw new Error('Only video files are allowed.');
+    }
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      throw new Error('This video is too large. Please choose a file under 25MB.');
+    }
+  };
+
   const handleImageSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []).slice(0, 10 - galleryImages.length - (coverImage ? 1 : 0));
     if (!files.length) return;
 
     try {
+      files.forEach(validateImageFile);
       const images = await Promise.all(files.map(readFileAsDataUrl));
       setCoverImage(current => current || images[0]);
       setGalleryImages(current => [...current, ...images].slice(0, 10));
       showNotice(`${images.length} photo${images.length === 1 ? '' : 's'} added to the post.`);
-    } catch {
-      showNotice('That photo could not be added. Please try another file.');
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : 'That photo could not be added. Please try another file.');
     } finally {
       event.target.value = '';
     }
@@ -127,10 +287,11 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
     if (!file) return;
 
     try {
+      validateVideoFile(file);
       setVideoUrl(await readFileAsDataUrl(file));
       showNotice('Video added to the post.');
-    } catch {
-      showNotice('That video could not be added. Please try another file.');
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : 'That video could not be added. Please try another file.');
     } finally {
       event.target.value = '';
     }
@@ -144,6 +305,8 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
 
   const handleSaveArticle = (targetStatus: ContentWorkflowStatus) => {
     if (!title.trim()) return;
+
+    clearDraftState();
 
     const slug = title
       .toLowerCase()
@@ -231,6 +394,11 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
     }
   };
 
+  const closeEditor = () => {
+    setIsEditorOpen(false);
+    clearDraftState();
+  };
+
   const filteredArticles = articles.filter(a => {
     if (filterStatus === 'all') return true;
     return a.status === filterStatus;
@@ -290,13 +458,13 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#5E6E52]/10 text-[#5E6E52] text-xs font-semibold uppercase tracking-wider mb-2">
             <Newspaper className="w-4 h-4" />
-            <span>SAFA News & Stories CMS</span>
+            <span>SAFA Stories</span>
           </div>
           <h2 className="text-2xl font-serif font-bold text-[#3D3B36]">
-            Articles & News Management
+            Stories and updates
           </h2>
           <p className="text-xs text-[#6D6A61] mt-1 max-w-xl leading-relaxed">
-            Create field reports, media dispatches, and press updates. Content flows through the "Draft → Review → Publish" verification workflow.
+            Share what is happening in the community. Write a story, add a photo, then choose what should happen next.
           </p>
         </div>
 
@@ -308,7 +476,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
             icon={<Plus className="w-4 h-4" />}
             className="shrink-0"
           >
-            + Create Article
+            Write a new story
           </Button>
         )}
       </div>
@@ -340,10 +508,10 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
       <Card className="p-6 bg-white border border-[#E5E0D5] rounded-3xl shadow-2xs space-y-4">
         {filteredArticles.length === 0 ? (
           <div className="text-center py-12 space-y-3">
-            <p className="text-xs text-[#6D6A61]">No articles found in this filter.</p>
+            <p className="text-xs text-[#6D6A61]">You do not have any stories here yet.</p>
             {canCreate && (
               <Button size="sm" variant="primary" onClick={openNewArticleModal}>
-                Create Your First Article
+                Write your first story
               </Button>
             )}
           </div>
@@ -482,13 +650,13 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
       {/* ARTICLE EDITOR MODAL */}
       <Modal
         isOpen={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
-        title={editingArticleId ? 'Edit Article' : 'Create New Article'}
+        onClose={closeEditor}
+        title={editingArticleId ? 'Edit story' : 'Write a new story'}
       >
         <div className="space-y-4 text-left text-xs max-h-[80vh] overflow-y-auto pr-1 min-w-0">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36] mb-1">
-              Article Title *
+              What should we call this story? *
             </label>
             <input
               type="text"
@@ -534,7 +702,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36] mb-1">
-              Brief Excerpt / Summary (for previews)
+              Short description (optional)
             </label>
             <textarea
               rows={2}
@@ -547,7 +715,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36] mb-1">
-              Full Article Content
+              What happened? *
             </label>
             <textarea
               rows={8}
@@ -562,7 +730,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36]">
-                  Post media
+                  Add photos or a video
                 </label>
                 <p className="text-[11px] text-[#6D6A61] mt-1">Choose photos or a video from this device. No links needed.</p>
               </div>
@@ -616,7 +784,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36] mb-1">
-              Tags (comma separated)
+              Extra labels (optional)
             </label>
             <input
               type="text"
@@ -645,7 +813,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
               size="sm"
               onClick={() => handleSaveArticle('draft')}
             >
-              Save as Draft
+                Save for later
             </Button>
 
             {/* Submit for Review (if not direct publisher) */}
@@ -657,7 +825,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
                 onClick={() => handleSaveArticle('submitted')}
                 icon={<Send className="w-3.5 h-3.5" />}
               >
-                Submit for Editorial Review
+                Send for review
               </Button>
             )}
 
@@ -670,7 +838,7 @@ export const AdminArticlesTab: React.FC<AdminArticlesTabProps> = ({
                 onClick={() => handleSaveArticle('published')}
                 icon={<CheckCircle2 className="w-3.5 h-3.5" />}
               >
-                Publish Live Immediately
+                Publish
               </Button>
             )}
           </div>

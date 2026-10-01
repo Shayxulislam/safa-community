@@ -1,12 +1,17 @@
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 
-const app = express();
-const PORT = 3000;
+export const app = express();
+const PORT = Number(process.env.PORT) || 3000;
+
+if (process.env.VERCEL === '1') {
+  app.set('trust proxy', 1);
+}
 
 // Basic security middleware & JSON parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '64kb' }));
+app.use(express.urlencoded({ extended: true, limit: '64kb', parameterLimit: 30 }));
 
 // Security headers
 app.use((_req: Request, res: Response, next: NextFunction) => {
@@ -19,6 +24,8 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
 // Simple in-memory rate limiting map for anti-spam
 const ipRequestCounts = new Map<string, { count: number; resetTime: number }>();
+const MAX_RATE_LIMIT_ENTRIES = 10_000;
+
 function rateLimit(limit = 60, windowMs = 60 * 1000) {
   return (req: Request, res: Response, next: NextFunction) => {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
@@ -26,6 +33,18 @@ function rateLimit(limit = 60, windowMs = 60 * 1000) {
     const entry = ipRequestCounts.get(ip);
 
     if (!entry || now > entry.resetTime) {
+      if (!entry && ipRequestCounts.size >= MAX_RATE_LIMIT_ENTRIES) {
+        for (const [trackedIp, trackedEntry] of ipRequestCounts) {
+          if (now > trackedEntry.resetTime) ipRequestCounts.delete(trackedIp);
+        }
+      }
+
+      if (!entry && ipRequestCounts.size >= MAX_RATE_LIMIT_ENTRIES) {
+        return res.status(429).json({
+          error: 'Too many requests. Please wait a moment before trying again.'
+        });
+      }
+
       ipRequestCounts.set(ip, { count: 1, resetTime: now + windowMs });
       return next();
     }
@@ -48,10 +67,10 @@ let contributionCounter = 6;
 // ==========================================
 async function sendTelegramNotification(text: string): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
 
   if (!token || !chatId) {
-    console.log(`[Telegram Notification] (Set TELEGRAM_BOT_TOKEN & TELEGRAM_ADMIN_CHAT_ID to send live):\n${text}`);
+    console.warn('[Telegram Notification] Missing TELEGRAM_BOT_TOKEN and/or TELEGRAM_ADMIN_CHAT_ID. Message was not sent.');
     return false;
   }
 
@@ -60,8 +79,9 @@ async function sendTelegramNotification(text: string): Promise<boolean> {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000),
       body: JSON.stringify({
-        chat_id: chatId,
+        chat_id: String(chatId).trim(),
         text,
         parse_mode: 'HTML'
       })
@@ -203,7 +223,7 @@ app.post(['/api/v1/volunteers', '/api/volunteers'], rateLimit(10), (req: Request
 });
 
 // Contact message endpoint
-app.post(['/api/v1/contact', '/api/contact'], rateLimit(10), (req: Request, res: Response) => {
+app.post(['/api/v1/contact', '/api/contact'], rateLimit(10), async (req: Request, res: Response) => {
   const { name, email, phone, subject, message, honeypot } = req.body;
 
   if (honeypot) {
@@ -225,15 +245,20 @@ app.post(['/api/v1/contact', '/api/contact'], rateLimit(10), (req: Request, res:
     createdAt: new Date().toISOString()
   };
 
-  // Telegram alert
-  sendTelegramNotification(
+  const telegramDelivered = await sendTelegramNotification(
     `📩 <b>New Contact Message Received</b>\n\n` +
     `• <b>From:</b> ${contact.name}\n` +
     `• <b>Email:</b> ${contact.email}\n` +
     (contact.phone ? `• <b>Phone:</b> ${contact.phone}\n` : '') +
     `• <b>Subject:</b> ${contact.subject}\n\n` +
     `<b>Message:</b>\n${contact.message}`
-  ).catch(() => {});
+  );
+
+  if (!telegramDelivered) {
+    return res.status(502).json({
+      error: 'Message could not be delivered to the SAFA Telegram account. Please try again later.'
+    });
+  }
 
   res.status(201).json({
     success: true,
@@ -246,6 +271,10 @@ app.post(['/api/v1/contact', '/api/contact'], rateLimit(10), (req: Request, res:
 // VITE DEV & PRODUCTION STATIC SERVING
 // ==========================================
 async function startServer() {
+  if (process.env.VERCEL === '1') {
+    return;
+  }
+
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -266,6 +295,9 @@ async function startServer() {
   });
 }
 
-startServer().catch(err => {
-  console.error('Failed to start server:', err);
-});
+if (process.env.VERCEL !== '1') {
+  startServer().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exitCode = 1;
+  });
+}
