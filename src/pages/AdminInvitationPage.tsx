@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck, Lock, CheckCircle2, AlertCircle, ArrowRight, UserPlus, Key } from 'lucide-react';
-import { storage } from '../services/storage';
 import { auth, ROLE_DETAILS } from '../services/auth';
+import { AdminInvitation } from '../types';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 
@@ -10,12 +10,25 @@ export const AdminInvitationPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
 
-  const invitation = token ? storage.getInvitationByToken(token) : undefined;
+  const [invitation, setInvitation] = useState<AdminInvitation | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    auth.getInvitation(token).then(result => setInvitation(result)).finally(() => setIsLoading(false));
+  }, [token]);
+
+  if (isLoading) {
+    return <div className="py-20 text-center text-sm text-[#6D6A61]">Loading invitation...</div>;
+  }
 
   if (!invitation) {
     return (
@@ -57,7 +70,7 @@ export const AdminInvitationPage: React.FC = () => {
 
   const roleMeta = ROLE_DETAILS[invitation.role];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -70,14 +83,14 @@ export const AdminInvitationPage: React.FC = () => {
       return;
     }
 
-    const res = auth.activateInvitation(invitation.token, password);
-    if (res.success) {
+    try {
+      await auth.activateInvitation(invitation.token, password);
       setIsSuccess(true);
       setTimeout(() => {
         navigate('/admin/dashboard');
       }, 1500);
-    } else {
-      setError(res.error || 'Activation failed');
+    } catch (activationError) {
+      setError(activationError instanceof Error ? activationError.message : 'Activation failed');
     }
   };
 
@@ -147,7 +160,10 @@ export const AdminInvitationPage: React.FC = () => {
                   <input
                     type="password"
                     required
-                    placeholder="At least 6 characters"
+                    minLength={8}
+                    maxLength={256}
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     className="w-full pl-10 pr-3.5 py-2.5 text-xs rounded-xl border border-[#E5E0D5] bg-white text-[#3D3B36] outline-hidden focus:border-[#5E6E52] focus:ring-1 focus:ring-[#5E6E52]"
@@ -164,6 +180,9 @@ export const AdminInvitationPage: React.FC = () => {
                   <input
                     type="password"
                     required
+                    minLength={8}
+                    maxLength={256}
+                    autoComplete="new-password"
                     placeholder="Re-type your password"
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}

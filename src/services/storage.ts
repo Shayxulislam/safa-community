@@ -12,14 +12,11 @@ import {
   VolunteerApplication,
   ContactMessage,
   AuditLog,
-  User,
-  UserRole,
   Article,
   VideoItem,
   PhotoAlbum,
   MediaAsset,
   Announcement,
-  AdminInvitation,
   ContentWorkflowStatus,
   EventItem,
   DonationCampaign
@@ -35,8 +32,6 @@ import {
   INITIAL_CONTRIBUTIONS,
   INITIAL_TRANSPARENCY_REPORTS,
   INITIAL_BANK_CONFIG,
-  INITIAL_USERS,
-  INITIAL_INVITATIONS,
   INITIAL_ARTICLES,
   INITIAL_VIDEOS,
   INITIAL_PHOTO_ALBUMS,
@@ -60,9 +55,6 @@ const KEYS = {
   VOLUNTEERS: 'safa_volunteers',
   CONTACTS: 'safa_contacts',
   AUDIT: 'safa_audit_logs',
-  CURRENT_USER: 'safa_current_user',
-  USERS: 'safa_admin_users',
-  INVITATIONS: 'safa_admin_invitations',
   ARTICLES: 'safa_articles',
   VIDEOS: 'safa_videos',
   PHOTO_ALBUMS: 'safa_photo_albums',
@@ -70,11 +62,14 @@ const KEYS = {
   ANNOUNCEMENTS: 'safa_announcements',
   EVENTS: 'safa_events',
   CAMPAIGNS: 'safa_donation_campaigns',
-  ADMIN_UNLOCKED: 'safa_admin_unlocked'
 };
 
 function removeLegacySeedContent(): void {
   if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem('safa_current_user');
+  localStorage.removeItem('safa_admin_unlocked');
+  localStorage.removeItem('safa_admin_users');
+  localStorage.removeItem('safa_admin_invitations');
   if (localStorage.getItem('safa_content_migrated_v2') === 'true') return;
 
   const legacyMarkers: Record<string, string[]> = {
@@ -130,103 +125,6 @@ function setLocal<T>(key: string, value: T): void {
 }
 
 class StorageService {
-  // ==========================================
-  // USERS & ADMINISTRATOR ACCOUNTS
-  // ==========================================
-  getUsers(): User[] {
-    return getLocal(KEYS.USERS, INITIAL_USERS);
-  }
-
-  getUserById(id: string): User | undefined {
-    return this.getUsers().find(u => u.id === id);
-  }
-
-  addUser(user: User, actor = 'Super Admin'): void {
-    const list = this.getUsers();
-    list.push(user);
-    setLocal(KEYS.USERS, list);
-    this.addAuditLog('Created Admin Account', 'User', `Added administrator ${user.name} (${user.role})`, actor, user.id);
-  }
-
-  updateUser(id: string, updates: Partial<User>, actor = 'Admin'): void {
-    const list = this.getUsers().map(u => (u.id === id ? { ...u, ...updates } : u));
-    setLocal(KEYS.USERS, list);
-    // If current logged-in user was updated, sync session
-    const current = this.getCurrentUser();
-    if (current && current.id === id) {
-      this.setCurrentUser({ ...current, ...updates });
-    }
-    this.addAuditLog(`Updated Admin Account (${id})`, 'User', `Updated attributes: ${Object.keys(updates).join(', ')}`, actor, id);
-  }
-
-  deleteUser(id: string, actor = 'Super Admin'): void {
-    const list = this.getUsers().filter(u => u.id !== id);
-    setLocal(KEYS.USERS, list);
-    this.addAuditLog('Removed Administrator', 'User', `Permanently removed admin account ${id}`, actor, id);
-  }
-
-  // ==========================================
-  // INVITATIONS
-  // ==========================================
-  getInvitations(): AdminInvitation[] {
-    return getLocal(KEYS.INVITATIONS, INITIAL_INVITATIONS);
-  }
-
-  getInvitationByToken(token: string): AdminInvitation | undefined {
-    return this.getInvitations().find(i => i.token === token);
-  }
-
-  createInvitation(data: {
-    name: string;
-    email: string;
-    role: UserRole;
-    customPermissions?: Partial<Record<any, boolean>>;
-    invitedBy: string;
-    invitedByName: string;
-  }): AdminInvitation {
-    const token = `safa-invite-${Math.random().toString(36).substring(2, 10)}-${Date.now().toString(36)}`;
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(); // 48 hours
-
-    const newInv: AdminInvitation = {
-      id: `inv-${Date.now()}`,
-      token,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-      customPermissions: data.customPermissions,
-      invitedBy: data.invitedBy,
-      invitedByName: data.invitedByName,
-      createdAt: new Date().toISOString(),
-      expiresAt,
-      status: 'pending'
-    };
-
-    const list = this.getInvitations();
-    list.unshift(newInv);
-    setLocal(KEYS.INVITATIONS, list);
-
-    this.addAuditLog(
-      'Issued Admin Invitation',
-      'AdminInvitation',
-      `Invited ${data.name} (${data.email}) as ${data.role}. Token expires in 48h.`,
-      data.invitedByName,
-      newInv.id
-    );
-
-    return newInv;
-  }
-
-  updateInvitationStatus(id: string, status: AdminInvitation['status']): void {
-    const list = this.getInvitations().map(i => (i.id === id ? { ...i, status } : i));
-    setLocal(KEYS.INVITATIONS, list);
-  }
-
-  revokeInvitation(id: string, actor = 'Super Admin'): void {
-    const list = this.getInvitations().map(i => (i.id === id ? { ...i, status: 'revoked' as const } : i));
-    setLocal(KEYS.INVITATIONS, list);
-    this.addAuditLog('Revoked Admin Invitation', 'AdminInvitation', `Revoked invitation ${id}`, actor, id);
-  }
-
   // ==========================================
   // ARTICLES CMS
   // ==========================================
@@ -900,11 +798,10 @@ class StorageService {
   }
 
   addAuditLog(action: string, entity: string, details: string, actor = 'Admin', entityId?: string): void {
-    const user = this.getCurrentUser();
     const log: AuditLog = {
       id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      userName: user ? user.name : actor,
-      userRole: user ? user.role : 'admin',
+      userName: actor,
+      userRole: 'admin',
       action,
       entity,
       entityId,
@@ -916,24 +813,6 @@ class StorageService {
     setLocal(KEYS.AUDIT, logs.slice(0, 150));
   }
 
-  // ==========================================
-  // SESSION
-  // ==========================================
-  getCurrentUser(): User | null {
-    return getLocal<User | null>(KEYS.CURRENT_USER, null);
-  }
-
-  setCurrentUser(user: User | null): void {
-    setLocal(KEYS.CURRENT_USER, user);
-  }
-
-  isAdminUnlocked(): boolean {
-    return getLocal<boolean>(KEYS.ADMIN_UNLOCKED, false);
-  }
-
-  setAdminUnlocked(unlocked: boolean): void {
-    setLocal(KEYS.ADMIN_UNLOCKED, unlocked);
-  }
 }
 
 export const storage = new StorageService();

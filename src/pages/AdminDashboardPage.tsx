@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../services/auth';
-import { storage } from '../services/storage';
 import { User } from '../types';
 import { AdminHeader } from '../components/admin/AdminHeader';
 import { AdminSidebar, AdminTab } from '../components/admin/AdminSidebar';
@@ -29,27 +28,19 @@ export const AdminDashboardPage: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!auth.isAuthenticated()) {
-      navigate('/admin/login');
-    } else {
-      setCurrentUser(auth.getCurrentUser());
-    }
+    let active = true;
+    auth.restoreSession().then(user => {
+      if (!active) return;
+      if (!user) navigate('/admin/login');
+      else setCurrentUser(user);
+    });
+    return () => { active = false; };
   }, [navigate]);
 
   if (!currentUser || !auth.isAuthenticated()) return null;
 
-  const handleUserSwitch = (newUser: User) => {
-    auth.login(newUser);
-    setCurrentUser(newUser);
-    // If switching away from super admin and on team tab, switch to overview
-    if (newUser.role !== 'super_admin' && activeTab === 'team') {
-      setActiveTab('overview');
-    }
-    setRefreshKey(prev => prev + 1);
-  };
-
-  const handleLogout = () => {
-    auth.logout();
+  const handleLogout = async () => {
+    await auth.logout();
     navigate('/admin/login');
   };
 
@@ -59,10 +50,8 @@ export const AdminDashboardPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-[#021024] flex flex-col font-sans">
-      {/* Top Admin Header with User info & quick staff simulation switcher */}
       <AdminHeader
         currentUser={currentUser}
-        onUserSwitch={handleUserSwitch}
         onLogout={handleLogout}
         onMenuToggle={() => setIsSidebarOpen(prev => !prev)}
       />

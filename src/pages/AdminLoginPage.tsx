@@ -1,58 +1,37 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, Lock, Key, ArrowRight, Eye, EyeOff, AlertCircle, User as UserIcon, UserPlus, Loader2 } from 'lucide-react';
-import { auth, ROLE_DETAILS, ADMIN_ACCESS_PASSWORD } from '../services/auth';
-import { storage } from '../services/storage';
+import { ShieldCheck, Lock, Key, ArrowRight, Eye, EyeOff, AlertCircle, User as UserIcon, Loader2 } from 'lucide-react';
+import { auth } from '../services/auth';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { SafaLogo } from '../components/ui/SafaLogo';
 
 export const AdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const allUsers = storage.getUsers();
-  const activeInvitations = storage.getInvitations().filter(i => i.status === 'pending');
-
-  // Default to the first available administrator.
-  const [selectedUserId, setSelectedUserId] = useState<string>(
-    allUsers.find(u => u.role === 'super_admin')?.id || allUsers[0]?.id || 'usr-1'
-  );
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const selectedUser = allUsers.find(u => u.id === selectedUserId) || allUsers[0];
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
     setError('');
 
-    if (!password) {
-      setError('Please enter the administrator password.');
+    if (!email.trim() || !password) {
+      setError('Enter your administrator email and password.');
       return;
     }
 
     setIsLoading(true);
-
-    // Provide immediate responsive feedback before validating/redirecting
-    setTimeout(() => {
-      // Password must match the configured administrator access password.
-      if (password !== ADMIN_ACCESS_PASSWORD) {
-        setError('Incorrect password. Access denied.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Authenticate and grant access
-      const res = auth.loginWithPassword(password, selectedUser);
-      if (res.success) {
-        navigate('/admin/dashboard');
-      } else {
-        setError(res.error || 'Access denied.');
-        setIsLoading(false);
-      }
-    }, 400);
+    const result = await auth.login(email, password);
+    if (result.success) {
+      navigate('/admin/dashboard');
+    } else {
+      setError(result.error || 'Sign-in failed.');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -73,7 +52,7 @@ export const AdminLoginPage: React.FC = () => {
             Administrator Portal
           </h1>
           <p className="text-sm text-[#6D6A61] mt-1.5 max-w-sm mx-auto">
-            Authorized personnel only. Please enter the administrator security password to continue.
+            Sign in with your individual administrator account.
           </p>
         </div>
 
@@ -89,40 +68,26 @@ export const AdminLoginPage: React.FC = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Account Selector */}
             <div>
               <label
-                htmlFor="admin-account-select"
+                htmlFor="admin-email-input"
                 className="block text-xs font-bold uppercase tracking-wider text-[#3D3B36] mb-1.5"
               >
-                Enter as Administrator:
+                Administrator email
               </label>
               <div className="relative">
                 <UserIcon className="w-4 h-4 text-[#6D6A61] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <select
-                  id="admin-account-select"
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="w-full pl-10 pr-8 py-2.5 text-xs rounded-xl border border-[#E5E0D5] bg-white text-[#3D3B36] font-medium outline-hidden focus:border-[#5E6E52] focus:ring-1 focus:ring-[#5E6E52] cursor-pointer appearance-none"
-                >
-                  {allUsers.map((u) => {
-                    const roleTitle = ROLE_DETAILS[u.role]?.title || u.role;
-                    return (
-                      <option key={u.id} value={u.id}>
-                        {u.name} — {roleTitle}
-                      </option>
-                    );
-                  })}
-                </select>
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#6D6A61] text-xs">
-                  ▼
-                </div>
+                <input
+                  id="admin-email-input"
+                  type="email"
+                  autoComplete="username"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full pl-10 pr-3.5 py-2.5 text-xs rounded-xl border border-[#E5E0D5] bg-white text-[#3D3B36] outline-hidden focus:border-[#5E6E52] focus:ring-1 focus:ring-[#5E6E52]"
+                />
               </div>
-              {selectedUser && (
-                <p className="text-[11px] text-[#6D6A61] mt-1.5">
-                  Role: <span className="font-semibold text-[#3D3B36]">{ROLE_DETAILS[selectedUser.role]?.title}</span> ({selectedUser.email})
-                </p>
-              )}
             </div>
 
             {/* Password Input (Required) */}
@@ -140,7 +105,8 @@ export const AdminLoginPage: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoFocus
-                  placeholder="Enter administrator password"
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -176,24 +142,6 @@ export const AdminLoginPage: React.FC = () => {
             </Button>
           </form>
 
-          {/* Pending Invitations link if applicable */}
-          {activeInvitations.length > 0 && (
-            <div className="p-3 rounded-2xl bg-[#B06D50]/10 border border-[#B06D50]/20 text-xs text-[#3D3B36]">
-              <div className="flex items-center gap-2 font-bold text-[#B06D50] mb-1">
-                <UserPlus className="w-4 h-4" />
-                <span>Pending Invitation Link</span>
-              </div>
-              <p className="text-[11px] text-[#6D6A61] mb-1.5">
-                Invitation pending for <strong>{activeInvitations[0].name}</strong> ({activeInvitations[0].email}).
-              </p>
-              <Link
-                to={`/admin/invite/${activeInvitations[0].token}`}
-                className="inline-flex items-center gap-1 font-semibold text-[#B06D50] hover:underline text-[11px]"
-              >
-                Test Activation Link →
-              </Link>
-            </div>
-          )}
         </Card>
 
         {/* Return to Public Website */}

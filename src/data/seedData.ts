@@ -56,19 +56,6 @@ export const INITIAL_BANK_CONFIG: DonationBankConfig = {
   note: ''
 };
 
-// Keep one technical bootstrap account so the local admin panel remains reachable.
-export const INITIAL_USERS: User[] = [
-  {
-    id: 'usr-admin',
-    name: 'SAFA Administrator',
-    email: '',
-    role: 'super_admin',
-    status: 'active',
-    createdAt: new Date(0).toISOString()
-  }
-];
-
-export const INITIAL_INVITATIONS: AdminInvitation[] = [];
 export const INITIAL_ARTICLES: Article[] = [];
 export const INITIAL_VIDEOS: VideoItem[] = [];
 export const INITIAL_PHOTO_ALBUMS: PhotoAlbum[] = [];

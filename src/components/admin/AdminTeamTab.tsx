@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ShieldAlert,
   UserPlus,
@@ -18,7 +18,6 @@ import {
   Lock
 } from 'lucide-react';
 import { User, UserRole, PermissionKey, AdminInvitation } from '../../types';
-import { storage } from '../../services/storage';
 import { auth, ROLE_DETAILS, ALL_PERMISSIONS } from '../../services/auth';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -34,8 +33,8 @@ export const AdminTeamTab: React.FC<AdminTeamTabProps> = ({
   onRefresh
 }) => {
   const isSuperAdmin = currentUser.role === 'super_admin';
-  const users = storage.getUsers();
-  const invitations = storage.getInvitations();
+  const [users, setUsers] = useState<User[]>([]);
+  const [invitations, setInvitations] = useState<AdminInvitation[]>([]);
 
   // Invite Admin Modal state
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -54,6 +53,14 @@ export const AdminTeamTab: React.FC<AdminTeamTabProps> = ({
 
   // Feedback notice
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    Promise.all([auth.listAdminAccounts(), auth.listInvitations()]).then(([accounts, pendingInvitations]) => {
+      setUsers(accounts);
+      setInvitations(pendingInvitations);
+    }).catch(error => showNotice(error instanceof Error ? error.message : 'Team data could not be loaded.'));
+  }, [isSuperAdmin]);
 
   const showNotice = (msg: string) => {
     setNotice(msg);
@@ -76,22 +83,26 @@ export const AdminTeamTab: React.FC<AdminTeamTabProps> = ({
   }
 
   // Handle invitation creation
-  const handleCreateInvite = (e: React.FormEvent) => {
+  const handleCreateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteName.trim() || !inviteEmail.trim()) return;
 
-    const newInv = storage.createInvitation({
-      name: inviteName.trim(),
-      email: inviteEmail.trim(),
-      role: inviteRole,
-      customPermissions: Object.keys(customPerms).length > 0 ? customPerms : undefined,
-      invitedBy: currentUser.id,
-      invitedByName: currentUser.name
-    });
-
-    setGeneratedInvite(newInv);
-    onRefresh();
-    showNotice(`Invitation created for ${newInv.name} (${newInv.role})!`);
+    try {
+      const newInv = await auth.createInvitation({
+        name: inviteName.trim(),
+        email: inviteEmail.trim(),
+        role: inviteRole,
+        customPermissions: Object.keys(customPerms).length > 0 ? customPerms : undefined,
+        invitedBy: currentUser.id,
+        invitedByName: currentUser.name
+      });
+      setGeneratedInvite(newInv);
+      setInvitations(previous => [newInv, ...previous]);
+      onRefresh();
+      showNotice(`Invitation created for ${newInv.name} (${newInv.role})!`);
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : 'Invitation could not be created.');
+    }
   };
 
   const copyInviteLink = (token: string) => {
@@ -103,43 +114,50 @@ export const AdminTeamTab: React.FC<AdminTeamTabProps> = ({
   };
 
   // Handle User Edit save
-  const handleSaveUserEdit = () => {
+  const handleSaveUserEdit = async () => {
     if (!editingUser) return;
 
-    storage.updateUser(
-      editingUser.id,
-      {
-        role: editRole,
-        status: editStatus,
-        customPermissions: editPerms
-      },
-      currentUser.name
-    );
-
-    setEditingUser(null);
-    onRefresh();
-    showNotice(`Updated administrator profile for ${editingUser.name}`);
+    try {
+      const updates = { role: editRole, status: editStatus, customPermissions: editPerms };
+      await auth.updateAdminAccount(editingUser.id, updates);
+      setUsers(previous => previous.map(user => user.id === editingUser.id ? { ...user, ...updates } : user));
+      setEditingUser(null);
+      onRefresh();
+      showNotice(`Updated administrator profile for ${editingUser.name}`);
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : 'Administrator could not be updated.');
+    }
   };
 
   // Handle User Deletion
-  const handleDeleteUser = (user: User) => {
+  const handleDeleteUser = async (user: User) => {
     if (user.id === currentUser.id) {
       alert('You cannot delete your own active administrator account!');
       return;
     }
     if (confirm(`Are you sure you want to permanently revoke administrator access for ${user.name}?`)) {
-      storage.deleteUser(user.id, currentUser.name);
-      onRefresh();
-      showNotice(`Administrator ${user.name} removed from the system.`);
+      try {
+        await auth.deleteAdminAccount(user.id);
+        setUsers(previous => previous.filter(account => account.id !== user.id));
+        onRefresh();
+        showNotice(`Administrator ${user.name} removed from the system.`);
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : 'Administrator could not be removed.');
+      }
     }
   };
 
   // Handle Revoke Invitation
-  const handleRevokeInvite = (inv: AdminInvitation) => {
+  const handleRevokeInvite = async (inv: AdminInvitation) => {
     if (confirm(`Revoke invitation for ${inv.name} (${inv.email})?`)) {
-      storage.revokeInvitation(inv.id, currentUser.name);
-      onRefresh();
-      showNotice(`Invitation for ${inv.email} revoked.`);
+      try {
+        await auth.revokeInvitation(inv.id);
+        setInvitations(previous => previous.map(invitation => invitation.id === inv.id ? { ...invitation, status: 'revoked' } : invitation));
+        onRefresh();
+        showNotice(`Invitation for ${inv.email} revoked.`);
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : 'Invitation could not be revoked.');
+      }
     }
   };
 
@@ -403,14 +421,16 @@ export const AdminTeamTab: React.FC<AdminTeamTabProps> = ({
                   <div className="flex items-center gap-2 shrink-0">
                     {isPending && (
                       <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => copyInviteLink(inv.token)}
-                          icon={<Copy className="w-3.5 h-3.5" />}
-                        >
-                          Copy Activation Link
-                        </Button>
+                        {inv.token && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => copyInviteLink(inv.token)}
+                            icon={<Copy className="w-3.5 h-3.5" />}
+                          >
+                            Copy Activation Link
+                          </Button>
+                        )}
                         <button
                           onClick={() => handleRevokeInvite(inv)}
                           className="text-xs text-red-600 hover:underline px-2 py-1"

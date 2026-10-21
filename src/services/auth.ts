@@ -1,5 +1,4 @@
 import { User, UserRole, PermissionKey, AdminInvitation } from '../types';
-import { storage } from './storage';
 
 export const ALL_PERMISSIONS: { key: PermissionKey; label: string; group: string; description: string }[] = [
   // Content
@@ -324,60 +323,118 @@ export const ROLE_DETAILS: Record<UserRole, { title: string; badgeColor: string;
   }
 };
 
-export const ADMIN_ACCESS_PASSWORD = 'NargizaSAFA!';
+let currentUser: User | null = null;
+
+async function adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`/api/v1/admin${path}`, {
+    ...options,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...options.headers }
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Administrator request failed.');
+  return body as T;
+}
 
 export const auth = {
-  getUsers(): User[] {
-    return storage.getUsers();
-  },
-
   getCurrentUser(): User | null {
-    return storage.getCurrentUser();
+    return currentUser;
   },
 
-  verifyAdminPassword(password: string): boolean {
-    return password === ADMIN_ACCESS_PASSWORD;
+  setCurrentUser(user: User | null): void {
+    currentUser = user;
   },
 
-  loginWithPassword(password: string, userOrId?: string | User): { success: boolean; user?: User; error?: string } {
-    if (password !== ADMIN_ACCESS_PASSWORD) {
-      return {
-        success: false,
-        error: 'Incorrect password. Access denied.'
-      };
+  async restoreSession(): Promise<User | null> {
+    try {
+      const result = await adminRequest<{ user: User }>('/auth/session');
+      currentUser = result.user;
+      return currentUser;
+    } catch {
+      currentUser = null;
+      return null;
     }
-
-    let targetUser: User | undefined;
-    if (userOrId && typeof userOrId === 'object') {
-      targetUser = userOrId;
-    } else if (typeof userOrId === 'string' && userOrId.trim()) {
-      const query = userOrId.trim().toLowerCase();
-      targetUser = storage.getUsers().find(u => u.id === query || u.email.toLowerCase() === query);
-    }
-
-    // Default to the first available administrator if no user is specified.
-    if (!targetUser) {
-      targetUser = storage.getUsers().find(u => u.role === 'super_admin') || storage.getUsers()[0];
-    }
-
-    if (!targetUser) {
-      return { success: false, error: 'Administrator profile not found.' };
-    }
-
-    if (targetUser.status === 'disabled') {
-      return { success: false, error: 'This administrator account has been disabled.' };
-    }
-
-    const updatedUser = { ...targetUser, lastLoginAt: new Date().toISOString() };
-    storage.setCurrentUser(updatedUser);
-    storage.setAdminUnlocked(true);
-    storage.updateUser(updatedUser.id, { lastLoginAt: updatedUser.lastLoginAt });
-    storage.addAuditLog('Admin Access Granted', 'Auth', `Authorized with password as ${updatedUser.name} (${updatedUser.role})`, updatedUser.name);
-    return { success: true, user: updatedUser };
   },
 
-  isAdminUnlocked(): boolean {
-    return storage.isAdminUnlocked();
+  async login(email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
+    try {
+      const result = await adminRequest<{ user: User }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
+      currentUser = result.user;
+      return { success: true, user: currentUser };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Sign-in failed.' };
+    }
+  },
+
+  async changePassword(currentPassword: string, newPassword: string, confirmPassword: string): Promise<void> {
+    await adminRequest('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+    });
+    currentUser = null;
+  },
+
+  async listAdminAccounts(): Promise<User[]> {
+    const result = await adminRequest<{ users: User[] }>('/accounts');
+    return result.users;
+  },
+
+  async getAdminSummary(): Promise<{ activeAccounts: number; pendingInvitations: number }> {
+    return adminRequest('/summary');
+  },
+
+  async updateAdminAccount(id: string, updates: Partial<Pick<User, 'role' | 'status' | 'customPermissions'>>): Promise<void> {
+    await adminRequest(`/accounts/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(updates) });
+  },
+
+  async deleteAdminAccount(id: string): Promise<void> {
+    await adminRequest(`/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
+  async createInvitation(data: Pick<AdminInvitation, 'name' | 'email' | 'role' | 'customPermissions' | 'invitedBy' | 'invitedByName'>): Promise<AdminInvitation> {
+    const result = await adminRequest<{ invitation: Pick<AdminInvitation, 'id' | 'token' | 'expiresAt'> }>('/invitations', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return { ...data, ...result.invitation, createdAt: new Date().toISOString(), status: 'pending' };
+  },
+
+  async listInvitations(): Promise<AdminInvitation[]> {
+    const result = await adminRequest<{ invitations: AdminInvitation[] }>('/invitations');
+    return result.invitations;
+  },
+
+  async getInvitation(token: string): Promise<AdminInvitation | null> {
+    try {
+      const result = await adminRequest<{ invitation: Omit<AdminInvitation, 'token'> }>('/invitations/' + encodeURIComponent(token));
+      return { ...result.invitation, token };
+    } catch {
+      return null;
+    }
+  },
+
+  async revokeInvitation(id: string): Promise<void> {
+    await adminRequest(`/invitations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
+  async activateInvitation(token: string, password: string): Promise<User> {
+    const result = await adminRequest<{ user: User }>(`/invitations/${encodeURIComponent(token)}/accept`, {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    });
+    currentUser = result.user;
+    return result.user;
+  },
+
+  async logout(): Promise<void> {
+    try {
+      await adminRequest('/auth/logout', { method: 'POST' });
+    } finally {
+      currentUser = null;
+    }
   },
 
   hasPermission(permission: PermissionKey, targetUser?: User | null): boolean {
@@ -408,91 +465,7 @@ export const auth = {
     return base;
   },
 
-  login(userOrEmail: string | User): { success: boolean; user?: User; error?: string } {
-    if (typeof userOrEmail === 'object') {
-      if (userOrEmail.status === 'disabled') {
-        return { success: false, error: 'This administrator account has been disabled by the owner.' };
-      }
-      const updatedUser = { ...userOrEmail, lastLoginAt: new Date().toISOString() };
-      storage.setCurrentUser(updatedUser);
-      storage.updateUser(updatedUser.id, { lastLoginAt: updatedUser.lastLoginAt });
-      storage.addAuditLog('Admin Login', 'Auth', `Logged in as ${updatedUser.name} (${updatedUser.role})`, updatedUser.name);
-      return { success: true, user: updatedUser };
-    }
-
-    const email = userOrEmail.trim().toLowerCase();
-    const users = storage.getUsers();
-    const user = users.find(u => u.email.toLowerCase() === email);
-
-    if (!user) {
-      return { success: false, error: 'No administrator account found with this email.' };
-    }
-
-    if (user.status === 'disabled') {
-      return { success: false, error: 'This account has been disabled. Please contact the SAFA owner.' };
-    }
-
-    const updatedUser = { ...user, lastLoginAt: new Date().toISOString() };
-    storage.setCurrentUser(updatedUser);
-    storage.updateUser(user.id, { lastLoginAt: updatedUser.lastLoginAt });
-    storage.addAuditLog('Admin Login', 'Auth', `Logged in as ${user.name} (${user.role})`, user.name);
-    return { success: true, user: updatedUser };
-  },
-
-  logout(): void {
-    const current = storage.getCurrentUser();
-    if (current) {
-      storage.addAuditLog('Admin Logout', 'Auth', `Administrator ${current.name} signed out`, current.name);
-    }
-    storage.setCurrentUser(null);
-    storage.setAdminUnlocked(false);
-  },
-
   isAuthenticated(): boolean {
-    const user = storage.getCurrentUser();
-    const unlocked = storage.isAdminUnlocked();
-    return !!user && user.status === 'active' && unlocked;
-  },
-
-  // Invitation Activation
-  activateInvitation(token: string, newPassword: string): { success: boolean; user?: User; error?: string } {
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: 'Password must be at least 6 characters long.' };
-    }
-
-    const invitation = storage.getInvitationByToken(token);
-    if (!invitation) {
-      return { success: false, error: 'Invalid or expired invitation link.' };
-    }
-
-    if (invitation.status !== 'pending') {
-      return { success: false, error: `This invitation has already been ${invitation.status}.` };
-    }
-
-    if (new Date(invitation.expiresAt) < new Date()) {
-      storage.updateInvitationStatus(invitation.id, 'expired');
-      return { success: false, error: 'This invitation token has expired. Please ask the owner for a new link.' };
-    }
-
-    // Create the activated admin user
-    const newUser: User = {
-      id: `usr-${Date.now()}`,
-      name: invitation.name,
-      email: invitation.email,
-      role: invitation.role,
-      status: 'active',
-      customPermissions: invitation.customPermissions,
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-      invitedBy: invitation.invitedByName
-    };
-
-    storage.addUser(newUser);
-    storage.updateInvitationStatus(invitation.id, 'accepted');
-    storage.setCurrentUser(newUser);
-    storage.setAdminUnlocked(true);
-    storage.addAuditLog('Activated Admin Account', 'User', `Admin ${newUser.name} created credentials and activated account`, newUser.name);
-
-    return { success: true, user: newUser };
+    return !!currentUser && currentUser.status === 'active';
   }
 };

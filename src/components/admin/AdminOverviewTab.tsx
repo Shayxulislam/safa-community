@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Newspaper,
   FolderHeart,
@@ -25,6 +25,7 @@ import { auth, ROLE_DETAILS } from '../../services/auth';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { AdminTab } from './AdminSidebar';
+import { AdminPasswordChange } from './AdminPasswordChange';
 
 interface AdminOverviewTabProps {
   currentUser: User;
@@ -40,7 +41,11 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
   const volunteers = storage.getVolunteers();
   const contributions = storage.getContributions();
   const auditLogs = storage.getAuditLogs();
-  const invitations = storage.getInvitations();
+  const [adminSummary, setAdminSummary] = useState<{ activeAccounts: number; pendingInvitations: number } | null>(null);
+
+  useEffect(() => {
+    auth.getAdminSummary().then(setAdminSummary).catch(() => setAdminSummary(null));
+  }, []);
 
   const publishedArticles = articles.filter(a => a.status === 'published');
   const reviewPendingArticles = articles.filter(a => a.status === 'submitted' || a.status === 'under_review');
@@ -243,6 +248,8 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
       <Card className="p-6 bg-[#FDFCF9] border border-[#E5E0D5] rounded-3xl shadow-2xs space-y-4">
         <div className="flex items-center justify-between">
           <div>
+
+          <AdminPasswordChange />
             <h3 className="font-serif font-bold text-lg text-[#3D3B36]">
               Content Workflow: Draft → Review → Publish
             </h3>
@@ -367,11 +374,11 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           <div className="space-y-3 text-xs">
             <div className="p-3 rounded-xl bg-white border border-[#E5E0D5] flex items-center justify-between">
               <span className="text-[#6D6A61]">Active Administrators</span>
-              <span className="font-bold text-[#3D3B36]">{storage.getUsers().length}</span>
+              <span className="font-bold text-[#3D3B36]">{adminSummary?.activeAccounts ?? '—'}</span>
             </div>
             <div className="p-3 rounded-xl bg-white border border-[#E5E0D5] flex items-center justify-between">
               <span className="text-[#6D6A61]">Pending Invitations</span>
-              <span className="font-bold text-[#B06D50]">{invitations.filter(i => i.status === 'pending').length}</span>
+              <span className="font-bold text-[#B06D50]">{adminSummary?.pendingInvitations ?? '—'}</span>
             </div>
             <div className="p-3 rounded-xl bg-white border border-[#E5E0D5] flex items-center justify-between">
               <span className="text-[#6D6A61]">Active Site Announcement</span>

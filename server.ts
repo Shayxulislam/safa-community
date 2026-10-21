@@ -1,9 +1,30 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import {
+  activateAdminInvitation,
+  clearSessionCookie,
+  createAdminInvitation,
+  createAdminSession,
+  deleteAdminAccount,
+  ensureAdminAuthSchema,
+  getAccountPasswordHash,
+  getAdminSummary,
+  getAdminFromRequest,
+  getAdminInvitation,
+  listAdminAccounts,
+  listAdminInvitations,
+  revokeAdminSession,
+  revokeAdminInvitation,
+  saveAccountPasswordAndRevokeSessions,
+  setSessionCookie,
+  updateAdminAccount
+} from './server/admin-auth';
+import { changeAccountPassword } from './server/passwords';
 
 export const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+const ADMIN_ROLES = new Set(['super_admin', 'admin', 'content_manager', 'media_manager', 'editor', 'finance', 'volunteer_manager', 'viewer']);
 
 if (process.env.VERCEL === '1') {
   app.set('trust proxy', 1);
@@ -109,6 +130,209 @@ app.get('/api/health', (_req: Request, res: Response) => {
     tagline: 'Connecting Hands, Changing Lives',
     timestamp: new Date().toISOString()
   });
+});
+
+function usesSecureCookies(req: Request): boolean {
+  return process.env.VERCEL === '1' || req.secure || req.headers['x-forwarded-proto'] === 'https';
+}
+
+async function requireAdmin(req: Request, res: Response) {
+  const account = await getAdminFromRequest(req);
+  if (!account) {
+    res.status(401).json({ error: 'Please sign in to continue.' });
+    return null;
+  }
+  return account;
+}
+
+app.post('/api/v1/admin/auth/login', rateLimit(8, 15 * 60 * 1000), async (req: Request, res: Response) => {
+  try {
+    await ensureAdminAuthSchema();
+    const { email, password } = req.body || {};
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+    const session = await createAdminSession(email, password);
+    if (!session) return res.status(401).json({ error: 'Email or password is incorrect.' });
+    res.setHeader('Set-Cookie', setSessionCookie(session.token, usesSecureCookies(req)));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ user: session.account });
+  } catch (error) {
+    console.error('[Admin Login Error]', error);
+    return res.status(503).json({ error: 'Administrator sign-in is unavailable. Check server authentication configuration.' });
+  }
+});
+
+app.get('/api/v1/admin/auth/session', async (req: Request, res: Response) => {
+  try {
+    const account = await getAdminFromRequest(req);
+    res.setHeader('Cache-Control', 'no-store');
+    return account ? res.json({ user: account }) : res.status(401).json({ error: 'Please sign in to continue.' });
+  } catch (error) {
+    console.error('[Admin Session Error]', error);
+    return res.status(503).json({ error: 'Administrator sign-in is unavailable. Check server authentication configuration.' });
+  }
+});
+
+app.post('/api/v1/admin/auth/change-password', rateLimit(10, 15 * 60 * 1000), async (req: Request, res: Response) => {
+  try {
+    const account = await requireAdmin(req, res);
+    if (!account) return;
+    const { currentPassword, newPassword, confirmPassword } = req.body || {};
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || typeof confirmPassword !== 'string') {
+      return res.status(400).json({ error: 'All password fields are required.' });
+    }
+    if (newPassword !== confirmPassword) return res.status(400).json({ error: 'New passwords do not match.' });
+    const result = await changeAccountPassword({
+      getPasswordHash: getAccountPasswordHash,
+      updatePasswordAndRevokeSessions: saveAccountPasswordAndRevokeSessions
+    }, account.id, currentPassword, newPassword);
+    if (result === 'invalid-current') return res.status(400).json({ error: 'Current password is incorrect.' });
+    if (result === 'invalid-new') return res.status(400).json({ error: 'New password must be between 8 and 256 characters.' });
+    res.setHeader('Set-Cookie', clearSessionCookie(usesSecureCookies(req)));
+    return res.json({ success: true, message: 'Password updated. Please sign in again.' });
+  } catch (error) {
+    console.error('[Admin Password Change Error]', error);
+    return res.status(503).json({ error: 'Password could not be changed. Try again later.' });
+  }
+});
+
+app.post('/api/v1/admin/auth/logout', async (req: Request, res: Response) => {
+  try {
+    await revokeAdminSession(req);
+    res.setHeader('Set-Cookie', clearSessionCookie(usesSecureCookies(req)));
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Admin Logout Error]', error);
+    return res.status(503).json({ error: 'Sign out could not be completed.' });
+  }
+});
+
+app.get('/api/v1/admin/accounts', async (req: Request, res: Response) => {
+  try {
+    const actor = await requireAdmin(req, res);
+    if (!actor) return;
+    if (actor.role !== 'super_admin') return res.status(403).json({ error: 'Owner access is required.' });
+    return res.json({ users: await listAdminAccounts() });
+  } catch (error) {
+    console.error('[Admin Accounts Error]', error);
+    return res.status(503).json({ error: 'Administrator accounts are unavailable.' });
+  }
+});
+
+app.get('/api/v1/admin/summary', async (req: Request, res: Response) => {
+  try {
+    const actor = await requireAdmin(req, res);
+    if (!actor) return;
+    return res.json(await getAdminSummary());
+  } catch (error) {
+    console.error('[Admin Summary Error]', error);
+    return res.status(503).json({ error: 'Administrator summary is unavailable.' });
+  }
+});
+
+app.patch('/api/v1/admin/accounts/:id', async (req: Request, res: Response) => {
+  try {
+    const actor = await requireAdmin(req, res);
+    if (!actor) return;
+    if (actor.role !== 'super_admin') return res.status(403).json({ error: 'Owner access is required.' });
+    const { role, status, customPermissions } = req.body || {};
+    if (role !== undefined && (typeof role !== 'string' || !ADMIN_ROLES.has(role))) return res.status(400).json({ error: 'Invalid administrator role.' });
+    if (status !== undefined && !['active', 'disabled'].includes(status)) return res.status(400).json({ error: 'Invalid account status.' });
+    await updateAdminAccount(req.params.id, { role, status, customPermissions });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Admin Account Update Error]', error);
+    return res.status(503).json({ error: 'Administrator account could not be updated.' });
+  }
+});
+
+app.delete('/api/v1/admin/accounts/:id', async (req: Request, res: Response) => {
+  try {
+    const actor = await requireAdmin(req, res);
+    if (!actor) return;
+    if (actor.role !== 'super_admin') return res.status(403).json({ error: 'Owner access is required.' });
+    if (actor.id === req.params.id) return res.status(400).json({ error: 'You cannot remove your own account.' });
+    await deleteAdminAccount(req.params.id);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Admin Account Delete Error]', error);
+    return res.status(503).json({ error: 'Administrator account could not be removed.' });
+  }
+});
+
+app.post('/api/v1/admin/invitations', async (req: Request, res: Response) => {
+  try {
+    const actor = await requireAdmin(req, res);
+    if (!actor) return;
+    if (actor.role !== 'super_admin') return res.status(403).json({ error: 'Owner access is required.' });
+    const { name, email, role, customPermissions } = req.body || {};
+    if (typeof name !== 'string' || !name.trim() || typeof email !== 'string' || !email.includes('@') || typeof role !== 'string' || !ADMIN_ROLES.has(role)) {
+      return res.status(400).json({ error: 'Name, valid email, and role are required.' });
+    }
+    const invitation = await createAdminInvitation({
+      name,
+      email,
+      role,
+      customPermissions,
+      invitedBy: actor.id,
+      invitedByName: actor.name
+    });
+    return res.status(201).json({ invitation });
+  } catch (error) {
+    console.error('[Admin Invitation Error]', error);
+    return res.status(503).json({ error: 'Invitation could not be created.' });
+  }
+});
+
+app.get('/api/v1/admin/invitations/:token', async (req: Request, res: Response) => {
+  try {
+    const invitation = await getAdminInvitation(req.params.token);
+    if (!invitation) return res.status(404).json({ error: 'Invitation not found.' });
+    return res.json({ invitation });
+  } catch (error) {
+    console.error('[Admin Invitation Lookup Error]', error);
+    return res.status(503).json({ error: 'Invitation could not be loaded.' });
+  }
+});
+
+app.get('/api/v1/admin/invitations', async (req: Request, res: Response) => {
+  try {
+    const actor = await requireAdmin(req, res);
+    if (!actor) return;
+    if (actor.role !== 'super_admin') return res.status(403).json({ error: 'Owner access is required.' });
+    return res.json({ invitations: await listAdminInvitations() });
+  } catch (error) {
+    console.error('[Admin Invitation List Error]', error);
+    return res.status(503).json({ error: 'Invitations are unavailable.' });
+  }
+});
+
+app.delete('/api/v1/admin/invitations/:id', async (req: Request, res: Response) => {
+  try {
+    const actor = await requireAdmin(req, res);
+    if (!actor) return;
+    if (actor.role !== 'super_admin') return res.status(403).json({ error: 'Owner access is required.' });
+    await revokeAdminInvitation(req.params.id);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Admin Invitation Revoke Error]', error);
+    return res.status(503).json({ error: 'Invitation could not be revoked.' });
+  }
+});
+
+app.post('/api/v1/admin/invitations/:token/accept', rateLimit(8, 15 * 60 * 1000), async (req: Request, res: Response) => {
+  try {
+    const password = req.body?.password;
+    if (typeof password !== 'string') return res.status(400).json({ error: 'A password is required.' });
+    const activation = await activateAdminInvitation(req.params.token, password);
+    if (!activation) return res.status(400).json({ error: 'Invitation is invalid, expired, or already used.' });
+    res.setHeader('Set-Cookie', setSessionCookie(activation.sessionToken, usesSecureCookies(req)));
+    return res.status(201).json({ user: activation.account });
+  } catch (error) {
+    console.error('[Admin Invitation Activation Error]', error);
+    return res.status(503).json({ error: 'Invitation could not be activated.' });
+  }
 });
 
 app.get('/api/v1/info', (_req: Request, res: Response) => {

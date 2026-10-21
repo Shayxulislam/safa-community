@@ -14,7 +14,7 @@ A youth-led community support and charity platform for Uzbekistan, founded by Na
   - **Events & Visits Calendar**: Community visits, hospital checkups, and aid distribution dates.
 
 - **Admin CMS Portal (`/admin/login`)**:
-  - Role-Based Access Control (Super Admin, Editor, Moderator, Analyst, Financial Lead).
+  - Individual administrator accounts with server-verified passwords and role-based access control.
   - Content Management: Events, Work Stories, Social Links, Founder & Organization settings.
   - Transparency & Donation Ledger management.
   - Team & Role delegation.
@@ -37,7 +37,7 @@ cd safa-community-platform
 # 2. Install dependencies
 npm install
 
-# 3. Create .env file (optional, for Gemini or Telegram Bot integration)
+# 3. Create .env file (admin access requires a PostgreSQL database)
 cp .env.example .env
 
 # 4. Start the development server
@@ -59,8 +59,12 @@ npm start
 ## Security & Admin Credentials
 
 - **Admin Gate**: `/admin/login`
-- **Default Super Admin Password**: `NargizaSAFA1org`
-- Role switcher allows simulating Super Admin, Editor, Moderator, Analyst, and Financial Lead roles in development mode.
+- Administrator accounts, salted password hashes, and revocable sessions are stored in PostgreSQL.
+- Set `DATABASE_URL`, `SAFA_ADMIN_BOOTSTRAP_EMAIL`, and `SAFA_ADMIN_BOOTSTRAP_PASSWORD` as server-side environment variables before the first admin API request. The bootstrap password is read only when the admin account table is empty; it is never sent to the browser.
+- Set the requested owner password in the hosting provider's encrypted `SAFA_ADMIN_BOOTSTRAP_PASSWORD` field. Do not place credentials in source files, `VITE_` variables, or committed environment files.
+- Configure those variables in Vercel Project Settings → Environment Variables for the relevant deployment environments, then redeploy. Choose the owner's sign-in email for `SAFA_ADMIN_BOOTSTRAP_EMAIL`.
+- Admin passwords must be at least 8 characters. After a password change, all sessions for that account are revoked and the administrator must sign in again.
+- Existing browser-only demo users and invitations are not migrated to PostgreSQL. Recreate staff access through the owner invitation workflow after bootstrap.
 
 ## Tech Stack
 
