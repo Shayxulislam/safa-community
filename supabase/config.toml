@@ -1,0 +1,5 @@
+project_id = "safa-community"
+
+[functions.safa-staff-auth]
+# Password login/refresh are public; every protected action verifies its own JWT and live DB session.
+verify_jwt = false

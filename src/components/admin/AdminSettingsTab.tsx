@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, CheckCircle2, User, Globe, BarChart2, Download, FileCode, FolderArchive, Terminal } from 'lucide-react';
+import { Settings, CheckCircle2, User, Globe, BarChart2 } from 'lucide-react';
 import { FounderProfile, SocialLink, ImpactStatistic, User as UserType } from '../../types';
 import { storage } from '../../services/storage';
 import { Card } from '../ui/Card';
@@ -65,55 +65,6 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
           </p>
         </div>
       </div>
-
-      {/* Project Source Code & Archive Download Card */}
-      <Card className="p-6 bg-[#FDFCF9] border-2 border-[#BFDBFE] rounded-3xl shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E2E8F0] pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#EBF3FC] text-[#0056D2] border border-[#BFDBFE] flex items-center justify-center shrink-0">
-              <FolderArchive className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-serif font-bold text-base text-[#172033]">
-                Full Project Source Code (ZIP Archive)
-              </h3>
-              <p className="text-xs text-[#64748B]">
-                Complete production codebase: React 19, TypeScript, Tailwind CSS, Express backend, vector logo, and assets.
-              </p>
-            </div>
-          </div>
-
-          <a
-            href="/safa-community-platform.zip"
-            download="safa-community-platform.zip"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#0056D2] text-white hover:bg-[#0046B0] text-xs font-bold transition-all shadow-xs shrink-0"
-          >
-            <Download className="w-4 h-4" />
-            <span>Download Project ZIP</span>
-          </a>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          <div className="p-3 rounded-xl bg-white border border-[#E2E8F0]">
-            <span className="font-bold text-[#172033] block mb-1">Local Quickstart</span>
-            <code className="text-[11px] font-mono text-[#0056D2] block bg-[#F8FAFC] p-1.5 rounded-lg border border-[#E2E8F0]">
-              npm install && npm run dev
-            </code>
-          </div>
-          <div className="p-3 rounded-xl bg-white border border-[#E2E8F0]">
-            <span className="font-bold text-[#172033] block mb-1">Production Build</span>
-            <code className="text-[11px] font-mono text-[#0056D2] block bg-[#F8FAFC] p-1.5 rounded-lg border border-[#E2E8F0]">
-              npm run build && npm start
-            </code>
-          </div>
-          <div className="p-3 rounded-xl bg-white border border-[#E2E8F0]">
-            <span className="font-bold text-[#172033] block mb-1">AI Studio Export</span>
-            <span className="text-[11px] text-[#64748B]">
-              You can also export anytime via AI Studio top menu → <strong>Export to ZIP</strong>.
-            </span>
-          </div>
-        </div>
-      </Card>
 
       {/* Founder Profile Form */}
       <Card className="p-6 bg-white border border-[#E5E0D5] rounded-3xl shadow-2xs space-y-4">

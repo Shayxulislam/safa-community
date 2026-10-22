@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../services/auth';
 import { User } from '../types';
+import { AdminPasswordChange } from '../components/admin/AdminPasswordChange';
 import { AdminHeader } from '../components/admin/AdminHeader';
 import { AdminSidebar, AdminTab } from '../components/admin/AdminSidebar';
 import { AdminOverviewTab } from '../components/admin/AdminOverviewTab';
-import { AdminTeamTab } from '../components/admin/AdminTeamTab';
 import { AdminArticlesTab } from '../components/admin/AdminArticlesTab';
 import { AdminProjectsTab } from '../components/admin/AdminProjectsTab';
 import { AdminMediaTab } from '../components/admin/AdminMediaTab';
@@ -27,21 +27,11 @@ export const AdminDashboardPage: React.FC = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    auth.restoreSession().then(user => {
-      if (!active) return;
-      if (!user) navigate('/admin/login');
-      else setCurrentUser(user);
-    });
-    return () => { active = false; };
-  }, [navigate]);
-
   if (!currentUser || !auth.isAuthenticated()) return null;
 
   const handleLogout = async () => {
-    await auth.logout();
-    navigate('/admin/login');
+    try { await auth.logout(); navigate('/admin/login'); }
+    catch (error) { window.alert(error instanceof Error ? error.message : 'Sign-out failed. Please retry.'); }
   };
 
   const handleRefresh = () => {
@@ -189,16 +179,14 @@ export const AdminDashboardPage: React.FC = () => {
             />
           )}
 
-          {activeTab === 'team' && (
-            <AdminTeamTab
-              key={refreshKey}
-              currentUser={currentUser}
-              onRefresh={handleRefresh}
-            />
-          )}
-
           {activeTab === 'audit' && (
             <AdminAuditLogsTab key={refreshKey} />
+          )}
+
+          {activeTab === 'password' && (
+            <div className="max-w-xl">
+              <AdminPasswordChange />
+            </div>
           )}
 
           {activeTab === 'settings' && (

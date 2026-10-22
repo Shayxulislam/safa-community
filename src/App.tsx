@@ -25,7 +25,8 @@ import { TermsPage } from './pages/TermsPage';
 import { AccessibilityPage } from './pages/AccessibilityPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
-import { AdminInvitationPage } from './pages/AdminInvitationPage';
+import { ProtectedRoute } from './components/admin/ProtectedRoute';
+import { Navigate } from 'react-router-dom';
 import { ArticlesPage } from './pages/ArticlesPage';
 import { EventsPage } from './pages/EventsPage';
 import { ArticleDetailPage } from './pages/ArticleDetailPage';
@@ -124,10 +125,10 @@ export default function App() {
             <Route path="/articles/:slug" element={<ArticleDetailPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/events/:slug" element={<EventDetailPage />} />
-            <Route path="/admin" element={<AdminDashboardPage />} />
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboardPage /></ProtectedRoute>} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
-            <Route path="/admin/invite/:token" element={<AdminInvitationPage />} />
-            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/admin/invite/:token" element={<Navigate to="/admin/login" replace />} />
+            <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboardPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>

@@ -1,102 +1,51 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, KeyRound } from 'lucide-react';
 import { auth } from '../../services/auth';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 
 export const AdminPasswordChange: React.FC = () => {
   const navigate = useNavigate();
+  const isOwner = auth.getCurrentUser()?.role === 'super_admin';
+  const [targetType, setTargetType] = useState<'owner' | 'admin'>(isOwner ? 'owner' : 'admin');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPasswords, setShowPasswords] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setMessage(null);
-    if (newPassword !== confirmPassword) {
-      setMessage({ type: 'error', text: 'New passwords do not match.' });
-      return;
-    }
-
-    setIsLoading(true);
+  const [confirmation, setConfirmation] = useState('');
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault(); if (busy) return;
+    setError(''); setMessage('');
+    if (newPassword !== confirmation) { setError('New passwords do not match.'); return; }
+    setBusy(true);
     try {
-      await auth.changePassword(currentPassword, newPassword, confirmPassword);
-      setMessage({ type: 'success', text: 'Password changed. Sign in again with your new password.' });
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      window.setTimeout(() => navigate('/admin/login'), 1200);
-    } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Password could not be changed.' });
-    } finally {
-      setIsLoading(false);
-    }
+      const result = await auth.changePassword(currentPassword, newPassword, confirmation, targetType);
+      setCurrentPassword(''); setNewPassword(''); setConfirmation('');
+      if (result.signedOut) navigate(auth.getSignInPath(), { replace: true });
+      else setMessage('Admin password changed. All Admin sessions have ended. You are still signed in as Owner.');
+    } catch (error) { setError(error instanceof Error ? error.message : 'Could not change password.'); }
+    finally { setBusy(false); }
   };
-
-  const inputClass = 'w-full px-3 py-2.5 pr-10 border rounded-xl border-[#E5E0D5] bg-white text-sm text-[#3D3B36] focus:border-[#5E6E52] focus:outline-hidden focus:ring-1 focus:ring-[#5E6E52]';
-
-  return (
-    <Card className="p-6 bg-white border border-[#E5E0D5] rounded-2xl shadow-2xs space-y-4">
-      <div>
-        <h2 className="font-serif font-bold text-lg text-[#3D3B36] flex items-center gap-2">
-          <KeyRound className="w-4 h-4 text-[#5E6E52]" />
-          Change password
-        </h2>
-        <p className="text-xs text-[#6D6A61] mt-1">Use your current password to set a new password for this account.</p>
-      </div>
-
-      {message && (
-        <div role={message.type === 'error' ? 'alert' : 'status'} className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${message.type === 'error' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-green-50 text-green-800 border-green-200'}`}>
-          {message.type === 'error' ? <AlertCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
-          <span>{message.text}</span>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-3">
-        {[
-          { id: 'current-admin-password', label: 'Current password', value: currentPassword, setValue: setCurrentPassword, autoComplete: 'current-password' },
-          { id: 'new-admin-password', label: 'New password', value: newPassword, setValue: setNewPassword, autoComplete: 'new-password' },
-          { id: 'confirm-admin-password', label: 'Confirm new password', value: confirmPassword, setValue: setConfirmPassword, autoComplete: 'new-password' }
-        ].map(field => (
-          <div key={field.id}>
-            <label htmlFor={field.id} className="block text-xs font-semibold text-[#3D3B36] mb-1">{field.label}</label>
-            <div className="relative">
-              <input
-                id={field.id}
-                type={showPasswords ? 'text' : 'password'}
-                autoComplete={field.autoComplete}
-                required
-                minLength={field.id === 'current-admin-password' ? undefined : 8}
-                maxLength={256}
-                value={field.value}
-                onChange={event => field.setValue(event.target.value)}
-                className={inputClass}
-              />
-              {field.id === 'current-admin-password' && (
-                <button
-                  type="button"
-                  onClick={() => setShowPasswords(value => !value)}
-                  aria-label={showPasswords ? 'Hide passwords' : 'Show passwords'}
-                  title={showPasswords ? 'Hide passwords' : 'Show passwords'}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#6D6A61] hover:text-[#3D3B36]"
-                >
-                  {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-
-        <div className="flex items-center justify-end pt-1">
-          <Button type="submit" variant="primary" size="sm" disabled={isLoading} icon={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}>
-            {isLoading ? 'Changing password...' : 'Change password'}
-          </Button>
-        </div>
-      </form>
-    </Card>
-  );
+  const input = 'w-full border border-[#E5E0D5] rounded-xl bg-white p-3 text-sm focus:ring-2 focus:ring-blue-600';
+  return <Card className="p-6 max-w-xl space-y-5 border border-[#E5E0D5]">
+    <div><h1 className="text-2xl font-serif font-bold">Security</h1><h2 className="text-lg mt-3 font-semibold flex items-center gap-2"><KeyRound className="w-5 h-5" />Change password</h2>
+      <p className="text-sm text-[#6D6A61] mt-2">{isOwner ? 'Owner can change either password. Confirm with your current Owner password.' : 'Change the Admin password using the current Admin password.'} All sessions for the selected type will end. Use 10–128 characters and different passwords for Owner and Admin.</p></div>
+    {error && <p role="alert" className="rounded-xl p-3 bg-red-50 text-red-800">{error}</p>}
+    {message && <p role="status" className="rounded-xl p-3 bg-green-50 text-green-800">{message}</p>}
+    <form className="space-y-4" onSubmit={submit}>
+      <div><label htmlFor="password-target" className="block text-sm font-semibold mb-1">Password to change</label>
+        <select id="password-target" value={targetType} disabled={busy || !isOwner} className={input} onChange={event => { setTargetType(event.target.value as 'owner' | 'admin'); setCurrentPassword(''); setNewPassword(''); setConfirmation(''); setMessage(''); setError(''); }}>
+          {isOwner && <option value="owner">Owner</option>}<option value="admin">Admin</option>
+        </select></div>
+      {[
+        {id:'current-admin-password', label:isOwner ? 'Current Owner password' : 'Current Admin password', value:currentPassword, set:setCurrentPassword, current:true},
+        {id:'new-admin-password', label:'New password', value:newPassword, set:setNewPassword, current:false},
+        {id:'confirm-admin-password', label:'Confirm new password', value:confirmation, set:setConfirmation, current:false}
+      ].map(field => <div key={field.id}><label htmlFor={field.id} className="block text-sm font-semibold mb-1">{field.label}</label><input id={field.id} className={input} type={visible ? 'text' : 'password'} autoComplete={field.current ? 'current-password' : 'new-password'} minLength={field.current ? undefined : 10} maxLength={128} value={field.value} onChange={event => field.set(event.target.value)} disabled={busy} required /></div>)}
+      <div className="flex flex-wrap justify-between items-center gap-3"><button type="button" onClick={() => setVisible(value => !value)} aria-pressed={visible} className="flex gap-2 items-center text-sm">{visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}{visible ? 'Hide passwords' : 'Show passwords'}</button><Button type="submit" disabled={busy}>{busy ? 'Changing password…' : 'Change password'}</Button></div>
+    </form>
+  </Card>;
 };

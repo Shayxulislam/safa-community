@@ -10,10 +10,10 @@ import {
   MessageSquare,
   Landmark,
   FileSpreadsheet,
-  ShieldAlert,
   History,
   Settings,
   Lock,
+  KeyRound,
   ChevronRight,
   Calendar,
   Share2,
@@ -39,9 +39,9 @@ export type AdminTab =
   | 'reports'
   | 'social'
   | 'organization'
-  | 'team'
   | 'audit'
-  | 'settings';
+  | 'settings'
+  | 'password';
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -69,7 +69,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     label: string;
     icon: React.ReactNode;
     requiredPermission?: PermissionKey;
-    superAdminOnly?: boolean;
     badge?: number;
   }
 
@@ -189,10 +188,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       title: 'TEAM & SETTINGS',
       items: [
         {
-          id: 'team',
-          label: 'Team members',
-          icon: <ShieldAlert className="w-4 h-4" />,
-          superAdminOnly: true
+          id: 'password',
+          label: 'Security',
+          icon: <KeyRound className="w-4 h-4" />
         },
         {
           id: 'audit',
@@ -228,9 +226,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 {sec.items.map(item => {
                   // Check permission
                   let hasAccess = true;
-                  if (item.superAdminOnly && !isSuperAdmin) {
-                    hasAccess = false;
-                  } else if (item.requiredPermission) {
+                  if (item.requiredPermission) {
                     hasAccess = auth.hasPermission(item.requiredPermission, currentUser) || isSuperAdmin;
                   }
 

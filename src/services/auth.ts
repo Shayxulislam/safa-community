@@ -1,4 +1,4 @@
-import { User, UserRole, PermissionKey, AdminInvitation } from '../types';
+import { User, UserRole, PermissionKey } from '../types';
 
 export const ALL_PERMISSIONS: { key: PermissionKey; label: string; group: string; description: string }[] = [
   // Content
@@ -282,12 +282,12 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, Record<PermissionKey, bo
 
 export const ROLE_DETAILS: Record<UserRole, { title: string; badgeColor: string; description: string }> = {
   super_admin: {
-    title: 'Super Admin / Owner',
+    title: 'Owner',
     badgeColor: 'bg-[#5E6E52] text-white',
     description: 'Full organizational control, manage administrators, finance, and system settings.'
   },
   admin: {
-    title: 'Administrator',
+    title: 'Admin',
     badgeColor: 'bg-[#3D3B36] text-white',
     description: 'Broad management across content, projects, volunteers, and reporting.'
   },
@@ -324,117 +324,58 @@ export const ROLE_DETAILS: Record<UserRole, { title: string; badgeColor: string;
 };
 
 let currentUser: User | null = null;
-
+let signInPath = '/admin/login';
+let restorePending: Promise<User | null> | null = null;
+let authVersion = 0;
+const changed = () => window.dispatchEvent(new Event('safa-auth-changed'));
+class AdminRequestError extends Error { constructor(public status: number, message: string) { super(message); } }
 async function adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const requestedAtVersion = authVersion;
   const response = await fetch(`/api/v1/admin${path}`, {
-    ...options,
-    credentials: 'same-origin',
+    ...options, credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...options.headers }
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || 'Administrator request failed.');
+  if (!response.ok) {
+    if (response.status === 401 && requestedAtVersion === authVersion) { authVersion++; currentUser = null; changed(); }
+    throw new AdminRequestError(response.status, body.error || 'Administrator request failed.');
+  }
   return body as T;
 }
-
 export const auth = {
-  getCurrentUser(): User | null {
-    return currentUser;
-  },
-
-  setCurrentUser(user: User | null): void {
-    currentUser = user;
-  },
-
+  getCurrentUser(): User | null { return currentUser; },
+  getSignInPath(): string { return signInPath; },
+  setCurrentUser(user: User | null): void { authVersion++; currentUser = user; changed(); },
   async restoreSession(): Promise<User | null> {
-    try {
-      const result = await adminRequest<{ user: User }>('/auth/session');
-      currentUser = result.user;
-      return currentUser;
-    } catch {
-      currentUser = null;
-      return null;
-    }
+    if (restorePending) return restorePending;
+    const startedAtVersion = authVersion;
+    restorePending = (async () => {
+      try { const result = await adminRequest<{ user: User }>('/auth/session'); if (startedAtVersion === authVersion) currentUser = result.user; return currentUser; }
+      catch (error) { if (error instanceof AdminRequestError && error.status === 401) return startedAtVersion === authVersion ? null : currentUser; throw error; }
+      finally { restorePending = null; }
+    })();
+    return restorePending;
   },
-
-  async login(email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
+  async login(adminType: 'owner' | 'admin', password: string): Promise<{ success: boolean; user?: User; error?: string }> {
     try {
-      const result = await adminRequest<{ user: User }>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
-      });
-      currentUser = result.user;
+      const result = await adminRequest<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ adminType, password }) });
+      authVersion++; currentUser = result.user; signInPath = '/admin/login'; changed();
       return { success: true, user: currentUser };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Sign-in failed.' };
-    }
+    } catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Sign-in failed.' }; }
   },
-
-  async changePassword(currentPassword: string, newPassword: string, confirmPassword: string): Promise<void> {
-    await adminRequest('/auth/change-password', {
-      method: 'POST',
-      body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+  async changePassword(currentPassword: string, newPassword: string, confirmPassword: string, targetType?: 'owner' | 'admin'): Promise<{signedOut: boolean}> {
+    const selected = targetType || (currentUser?.role === 'super_admin' ? 'owner' : 'admin');
+    const result = await adminRequest<{signedOut: boolean}>('/auth/change-password', {
+      method: 'POST', body: JSON.stringify({ currentPassword, newPassword, confirmPassword, targetType: selected })
     });
-    currentUser = null;
+    if (result.signedOut) { signInPath = `/admin/login?changed=1&type=${selected}`; authVersion++; currentUser = null; changed(); }
+    return result;
   },
-
-  async listAdminAccounts(): Promise<User[]> {
-    const result = await adminRequest<{ users: User[] }>('/accounts');
-    return result.users;
-  },
-
-  async getAdminSummary(): Promise<{ activeAccounts: number; pendingInvitations: number }> {
-    return adminRequest('/summary');
-  },
-
-  async updateAdminAccount(id: string, updates: Partial<Pick<User, 'role' | 'status' | 'customPermissions'>>): Promise<void> {
-    await adminRequest(`/accounts/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(updates) });
-  },
-
-  async deleteAdminAccount(id: string): Promise<void> {
-    await adminRequest(`/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  },
-
-  async createInvitation(data: Pick<AdminInvitation, 'name' | 'email' | 'role' | 'customPermissions' | 'invitedBy' | 'invitedByName'>): Promise<AdminInvitation> {
-    const result = await adminRequest<{ invitation: Pick<AdminInvitation, 'id' | 'token' | 'expiresAt'> }>('/invitations', {
-      method: 'POST',
-      body: JSON.stringify(data)
-    });
-    return { ...data, ...result.invitation, createdAt: new Date().toISOString(), status: 'pending' };
-  },
-
-  async listInvitations(): Promise<AdminInvitation[]> {
-    const result = await adminRequest<{ invitations: AdminInvitation[] }>('/invitations');
-    return result.invitations;
-  },
-
-  async getInvitation(token: string): Promise<AdminInvitation | null> {
-    try {
-      const result = await adminRequest<{ invitation: Omit<AdminInvitation, 'token'> }>('/invitations/' + encodeURIComponent(token));
-      return { ...result.invitation, token };
-    } catch {
-      return null;
-    }
-  },
-
-  async revokeInvitation(id: string): Promise<void> {
-    await adminRequest(`/invitations/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  },
-
-  async activateInvitation(token: string, password: string): Promise<User> {
-    const result = await adminRequest<{ user: User }>(`/invitations/${encodeURIComponent(token)}/accept`, {
-      method: 'POST',
-      body: JSON.stringify({ password })
-    });
-    currentUser = result.user;
-    return result.user;
-  },
-
+  async listAdminAccounts(): Promise<User[]> { return (await adminRequest<{users: User[]}>('/accounts')).users; },
+  async getAdminSummary(): Promise<{activeAccounts: number; pendingInvitations: number}> { return adminRequest('/summary'); },
   async logout(): Promise<void> {
-    try {
-      await adminRequest('/auth/logout', { method: 'POST' });
-    } finally {
-      currentUser = null;
-    }
+    await adminRequest('/auth/logout', {method: 'POST'});
+    authVersion++; currentUser = null; signInPath = '/admin/login'; changed();
   },
 
   hasPermission(permission: PermissionKey, targetUser?: User | null): boolean {

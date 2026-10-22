@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   Newspaper,
   FolderHeart,
@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { User } from '../../types';
 import { storage } from '../../services/storage';
-import { auth, ROLE_DETAILS } from '../../services/auth';
+import { auth } from '../../services/auth';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { AdminTab } from './AdminSidebar';
@@ -41,12 +41,6 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
   const volunteers = storage.getVolunteers();
   const contributions = storage.getContributions();
   const auditLogs = storage.getAuditLogs();
-  const [adminSummary, setAdminSummary] = useState<{ activeAccounts: number; pendingInvitations: number } | null>(null);
-
-  useEffect(() => {
-    auth.getAdminSummary().then(setAdminSummary).catch(() => setAdminSummary(null));
-  }, []);
-
   const publishedArticles = articles.filter(a => a.status === 'published');
   const reviewPendingArticles = articles.filter(a => a.status === 'submitted' || a.status === 'under_review');
   const draftArticles = articles.filter(a => a.status === 'draft');
@@ -57,7 +51,6 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
     .filter(c => c.status === 'completed')
     .reduce((acc, c) => acc + (c.currency === 'UZS' ? c.amount : c.amount * 12500), 0);
 
-  const isSuperAdmin = currentUser.role === 'super_admin';
   const canPublish = auth.hasPermission('content.publish', currentUser);
   const canCreate = auth.hasPermission('content.create', currentUser);
 
@@ -110,19 +103,6 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-2.5 shrink-0">
-          {isSuperAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onNavigateTab('team')}
-              className="bg-white/10 text-white border-white/30 hover:bg-white/20"
-              icon={<Plus className="w-4 h-4" />}
-            >
-              Invite a team member
-            </Button>
-          )}
-        </div>
       </div>
 
       {/* KPI Cards */}
@@ -327,7 +307,7 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
                 Recent Administrative Activity
               </h3>
               <p className="text-xs text-[#6D6A61]">
-                Immutable audit trail of actions taken by all team members
+                Immutable audit trail of actions taken in the admin panel
               </p>
             </div>
             <button
@@ -365,21 +345,13 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           </div>
         </Card>
 
-        {/* Administration Governance Summary */}
+        {/* Platform Status */}
         <Card className="p-6 bg-[#FDFCF9] border border-[#E5E0D5] rounded-3xl shadow-2xs space-y-4">
           <h3 className="font-serif font-bold text-base text-[#3D3B36]">
-            Governance & Roles
+            Platform Status
           </h3>
 
           <div className="space-y-3 text-xs">
-            <div className="p-3 rounded-xl bg-white border border-[#E5E0D5] flex items-center justify-between">
-              <span className="text-[#6D6A61]">Active Administrators</span>
-              <span className="font-bold text-[#3D3B36]">{adminSummary?.activeAccounts ?? '—'}</span>
-            </div>
-            <div className="p-3 rounded-xl bg-white border border-[#E5E0D5] flex items-center justify-between">
-              <span className="text-[#6D6A61]">Pending Invitations</span>
-              <span className="font-bold text-[#B06D50]">{adminSummary?.pendingInvitations ?? '—'}</span>
-            </div>
             <div className="p-3 rounded-xl bg-white border border-[#E5E0D5] flex items-center justify-between">
               <span className="text-[#6D6A61]">Active Site Announcement</span>
               <span className="font-bold text-[#5E6E52]">
@@ -392,16 +364,6 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
             </div>
           </div>
 
-          {isSuperAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-center"
-              onClick={() => onNavigateTab('team')}
-            >
-              Manage Staff & Permissions →
-            </Button>
-          )}
         </Card>
       </div>
     </div>

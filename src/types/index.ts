@@ -46,7 +46,7 @@ export type PermissionKey =
   | 'admins.delete'
   | 'settings.manage';
 
-export type UserStatus = 'active' | 'disabled' | 'pending_invitation';
+export type UserStatus = 'active' | 'disabled';
 
 export interface User {
   id: string;
@@ -58,20 +58,6 @@ export interface User {
   createdAt: string;
   lastLoginAt?: string;
   invitedBy?: string;
-}
-
-export interface AdminInvitation {
-  id: string;
-  token: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  customPermissions?: Partial<Record<PermissionKey, boolean>>;
-  invitedBy: string;
-  invitedByName: string;
-  createdAt: string;
-  expiresAt: string;
-  status: 'pending' | 'accepted' | 'expired' | 'revoked';
 }
 
 export interface Article {

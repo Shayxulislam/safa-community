@@ -15,7 +15,6 @@ import {
   PhotoAlbum,
   MediaAsset,
   Announcement,
-  AdminInvitation,
   EventItem,
   DonationCampaign
 } from '../types';
