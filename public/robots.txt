@@ -4,4 +4,4 @@ Disallow: /admin
 Disallow: /contributions/history
 Disallow: /contributions/success
 
-Sitemap: https://safa-community.vercel.app/sitemap.xml
+Sitemap: https://safa-community.com/sitemap.xml

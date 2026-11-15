@@ -26,17 +26,20 @@ export const WorkDetailPage: React.FC = () => {
 
   if (!item) {
     return (
-      <div className="py-24 text-center max-w-lg mx-auto px-4">
-        <h2 className="text-2xl font-bold text-[#172033] mb-4">Project Not Found</h2>
-        <p className="text-sm text-[#64748B] mb-6">
-          The requested work record may have been updated, archived, or is awaiting publication verification.
-        </p>
-        <Link to="/work">
-          <Button variant="primary" size="md" icon={<ArrowLeft className="w-4 h-4" />}>
-            Back to Piece of Our Work
-          </Button>
-        </Link>
-      </div>
+      <>
+        <SeoHead title="Project not found | SAFA" path={`/work/${slug || ''}`} noindex />
+        <div className="py-24 text-center max-w-lg mx-auto px-4">
+          <h2 className="text-2xl font-bold text-[#172033] mb-4">Project Not Found</h2>
+          <p className="text-sm text-[#64748B] mb-6">
+            The requested work record may have been updated, archived, or is awaiting publication verification.
+          </p>
+          <Link to="/work">
+            <Button variant="primary" size="md" icon={<ArrowLeft className="w-4 h-4" />}>
+              Back to Piece of Our Work
+            </Button>
+          </Link>
+        </div>
+      </>
     );
   }
 

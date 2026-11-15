@@ -9,7 +9,7 @@ export const ArticleDetailPage: React.FC = () => {
   const article = slug ? storage.getArticleBySlug(slug) : undefined;
 
   if (!article || article.status !== 'published') {
-    return <div className="py-24 text-center px-4"><h1 className="text-2xl font-bold">Article not found</h1><Link to="/articles" className="mt-4 inline-block underline">Back to articles</Link></div>;
+    return <><SeoHead title="Article not found | SAFA" path={`/articles/${slug || ''}`} noindex /><div className="py-24 text-center px-4"><h1 className="text-2xl font-bold">Article not found</h1><Link to="/articles" className="mt-4 inline-block underline">Back to articles</Link></div></>;
   }
 
   const description = article.seoDescription || article.excerpt;

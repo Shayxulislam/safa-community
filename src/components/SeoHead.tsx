@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-const SITE_URL = 'https://safa-community.vercel.app';
+const SITE_URL = 'https://safa-community.com';
 const DEFAULT_DESCRIPTION = 'SAFA is a youth-led community-support initiative in Uzbekistan connecting people who want to help with communities and families in need.';
 
 interface SeoHeadProps {
@@ -10,6 +10,7 @@ interface SeoHeadProps {
   image?: string;
   type?: 'website' | 'article';
   schema?: Record<string, unknown>;
+  schemaKey?: 'route' | 'page';
   noindex?: boolean;
 }
 
@@ -30,6 +31,7 @@ export function SeoHead({
   image = '/safa-logo.svg',
   type = 'website',
   schema,
+  schemaKey = 'page',
   noindex = false
 }: SeoHeadProps) {
   useEffect(() => {
@@ -57,11 +59,11 @@ export function SeoHead({
     }
     canonical.href = canonicalUrl;
 
-    const existingSchema = document.head.querySelector<HTMLScriptElement>('script[data-safa-schema]');
+    const existingSchema = document.head.querySelector<HTMLScriptElement>(`script[data-safa-schema="${schemaKey}"]`);
     if (existingSchema) existingSchema.remove();
     const schemaScript = document.createElement('script');
     schemaScript.type = 'application/ld+json';
-    schemaScript.dataset.safaSchema = 'true';
+    schemaScript.dataset.safaSchema = schemaKey;
     schemaScript.textContent = JSON.stringify(schema || {
       '@context': 'https://schema.org',
       '@type': 'WebSite',
@@ -71,7 +73,8 @@ export function SeoHead({
       publisher: { '@type': 'Organization', name: 'SAFA', url: `${SITE_URL}/` }
     });
     document.head.appendChild(schemaScript);
-  }, [description, image, noindex, path, schema, title, type]);
+    return () => schemaScript.remove();
+  }, [description, image, noindex, path, schema, schemaKey, title, type]);
 
   return null;
 };

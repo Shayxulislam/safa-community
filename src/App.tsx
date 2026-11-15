@@ -32,7 +32,7 @@ const EventsPage = lazy(() => import('./pages/EventsPage').then(module => ({ def
 const ArticleDetailPage = lazy(() => import('./pages/ArticleDetailPage').then(module => ({ default: module.ArticleDetailPage })));
 const EventDetailPage = lazy(() => import('./pages/EventDetailPage').then(module => ({ default: module.EventDetailPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
-import { SeoHead } from './components/SeoHead';
+import { SeoHead, SITE_URL } from './components/SeoHead';
 
 // Auto scroll to top on route change
 function ScrollToTop() {
@@ -69,15 +69,17 @@ function RouteSeo() {
   };
   const title = labels[pathname] || (pathname.startsWith('/admin') ? 'Admin Portal | SAFA' : 'SAFA | Connecting Hands, Changing Lives');
   const noindex = pathname.startsWith('/admin') || pathname.startsWith('/contributions');
+  const contentDetail = /^\/(work|articles|events)\/[^/]+\/?$/.test(pathname);
+  if (contentDetail) return null; // Detail pages provide their own Article/Event metadata.
   const schema = {
     '@context': 'https://schema.org',
     '@graph': [
-      { '@type': 'Organization', name: 'SAFA', url: 'https://safa-community.vercel.app/', logo: 'https://safa-community.vercel.app/safa-logo.svg' },
-      { '@type': 'WebSite', name: 'SAFA', url: 'https://safa-community.vercel.app/' },
-      { '@type': 'BreadcrumbList', itemListElement: pathname === '/' ? [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://safa-community.vercel.app/' }] : [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://safa-community.vercel.app/' }, { '@type': 'ListItem', position: 2, name: title.replace(' | SAFA', ''), item: `https://safa-community.vercel.app${pathname}` }] }
+      { '@type': 'Organization', name: 'SAFA', url: `${SITE_URL}/`, logo: `${SITE_URL}/safa-logo.svg` },
+      { '@type': 'WebSite', name: 'SAFA', url: `${SITE_URL}/` },
+      { '@type': 'BreadcrumbList', itemListElement: pathname === '/' ? [{ '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` }] : [{ '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` }, { '@type': 'ListItem', position: 2, name: title.replace(' | SAFA', ''), item: `${SITE_URL}${pathname}` }] }
     ]
   };
-  return <SeoHead title={title} path={pathname} schema={schema} noindex={noindex} />;
+  return <SeoHead title={title} path={pathname} schema={schema} schemaKey="route" noindex={noindex} />;
 }
 
 export default function App() {

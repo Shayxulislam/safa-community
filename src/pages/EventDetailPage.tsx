@@ -8,7 +8,7 @@ export const EventDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const event = slug ? storage.getEventBySlug(slug) : undefined;
 
-  if (!event) return <div className="py-24 text-center px-4"><h1 className="text-2xl font-bold">Event not found</h1><Link to="/events" className="mt-4 inline-block underline">Back to events</Link></div>;
+  if (!event) return <><SeoHead title="Event not found | SAFA" path={`/events/${slug || ''}`} noindex /><div className="py-24 text-center px-4"><h1 className="text-2xl font-bold">Event not found</h1><Link to="/events" className="mt-4 inline-block underline">Back to events</Link></div></>;
 
   const description = event.description;
   const schema = {
