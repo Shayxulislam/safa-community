@@ -38,13 +38,18 @@ export function createSupabaseStaffRouter(fetcher: typeof fetch = fetch) {
     let response: globalThis.Response;
     try {
       response = await fetcher(`${SUPABASE_URL}/functions/v1/safa-staff-auth/${action}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: publicKey, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: publicKey,
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(body), signal: AbortSignal.timeout(20000)
       });
     } catch { throw new AuthError(503, 'Authentication is temporarily unavailable. Please retry.'); }
-    const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({})) as Partial<AuthResult> & { error?: string };
     if (!response.ok) throw new AuthError(response.status, data.error || 'Authentication request failed.');
-    return data;
+    return data as AuthResult;
   };
   // Every request validates a live Supabase session; role fields from the browser are ignored.
   const signedIn = async (req: Request, res: Response) => {

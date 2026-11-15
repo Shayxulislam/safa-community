@@ -64,47 +64,84 @@ const KEYS = {
   CAMPAIGNS: 'safa_donation_campaigns',
 };
 
-function removeLegacySeedContent(): void {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.removeItem('safa_current_user');
-  localStorage.removeItem('safa_admin_unlocked');
-  localStorage.removeItem('safa_admin_users');
-  localStorage.removeItem('safa_admin_invitations');
-  if (localStorage.getItem('safa_content_migrated_v2') === 'true') return;
+const SUPABASE_COLLECTIONS: Record<string, string> = {
+  [KEYS.FOUNDER]: 'founder_profile',
+  [KEYS.SOCIALS]: 'social_links',
+  [KEYS.STATS]: 'impact_statistics',
+  [KEYS.PROGRAMS]: 'programs',
+  [KEYS.WORK_ITEMS]: 'work_items',
+  [KEYS.STORIES]: 'stories',
+  [KEYS.HISTORY]: 'history_entries',
+  [KEYS.REPORTS]: 'transparency_reports',
+  [KEYS.BANK]: 'bank_config',
+  [KEYS.ARTICLES]: 'articles',
+  [KEYS.VIDEOS]: 'videos',
+  [KEYS.PHOTO_ALBUMS]: 'photo_albums',
+  [KEYS.MEDIA]: 'media_assets',
+  [KEYS.ANNOUNCEMENTS]: 'announcements',
+  [KEYS.EVENTS]: 'events',
+  [KEYS.CAMPAIGNS]: 'donation_campaigns',
+  'safa_story_editor_draft': 'story_drafts'
+};
 
-  const legacyMarkers: Record<string, string[]> = {
-    [KEYS.FOUNDER]: ['Nargiza', '/nargiza_ceo.jpg', '/founder_nargiza.jpg'],
-    [KEYS.STATS]: ['1,100+', '160+'],
-    [KEYS.PROGRAMS]: ['prog-disability', '280+ individuals'],
-    [KEYS.WORK_ITEMS]: ['work-1', '18500000'],
-    [KEYS.STORIES]: ['story-1', 'Bobur aka'],
-    [KEYS.HISTORY]: ['hist-1', '1,100'],
-    [KEYS.CONTRIBUTIONS]: ['c-1001', '1500000'],
-    [KEYS.REPORTS]: ['rep-1', 'winter-warmth-2026.pdf'],
-    [KEYS.BANK]: ['CONFIRM WITH SAFA BOARD'],
-    [KEYS.VOLUNTEERS]: ['vol-1', 'Kamola Saidova'],
-    [KEYS.CONTACTS]: ['msg-1', 'Sardor Mirzayev'],
-    [KEYS.AUDIT]: ['aud-1', 'Verified Project and Published Work'],
-    [KEYS.ARTICLES]: ['art-1', 'safa-community-visit-tashkent-winter'],
-    [KEYS.VIDEOS]: ['vid-1', 'Winter Warmth Drive 2026'],
-    [KEYS.PHOTO_ALBUMS]: ['alb-1', 'Winter Relief Drive'],
-    [KEYS.MEDIA]: ['med-1', 'winter-warmth-hero.jpg'],
-    [KEYS.ANNOUNCEMENTS]: ['ann-1', 'Spring Navruz 2026'],
-    [KEYS.EVENTS]: ['evt-1', 'navruz-community-grocery-drive-2026'],
-    [KEYS.CAMPAIGNS]: ['camp-1', '38400000']
-  };
+const PUBLIC_STORAGE_COLLECTIONS: Record<string, string> = {
+  [KEYS.FOUNDER]: 'founder_profile',
+  [KEYS.SOCIALS]: 'social_links',
+  [KEYS.STATS]: 'impact_statistics',
+  [KEYS.PROGRAMS]: 'programs',
+  [KEYS.WORK_ITEMS]: 'work_items',
+  [KEYS.STORIES]: 'stories',
+  [KEYS.HISTORY]: 'history_entries',
+  [KEYS.REPORTS]: 'transparency_reports',
+  [KEYS.ARTICLES]: 'articles',
+  [KEYS.ANNOUNCEMENTS]: 'announcements',
+  [KEYS.EVENTS]: 'events',
+  [KEYS.CAMPAIGNS]: 'donation_campaigns',
+  [KEYS.BANK]: 'bank_config'
+};
 
-  Object.entries(legacyMarkers).forEach(([key, markers]) => {
-    const value = localStorage.getItem(key);
-    if (value && markers.some(marker => value.includes(marker))) {
-      localStorage.removeItem(key);
-    }
-  });
+let supabaseSyncEnabled = false;
 
-  localStorage.setItem('safa_content_migrated_v2', 'true');
+function parseLocalRecords(value: string | null): Record<string, unknown>[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.filter((record): record is Record<string, unknown> => typeof record === 'object' && record !== null);
+    if (typeof parsed === 'object' && parsed !== null) return [parsed as Record<string, unknown>];
+  } catch { /* Leave malformed legacy values untouched. */ }
+  return [];
 }
 
-removeLegacySeedContent();
+function reportStorageSyncError(collection: string): void {
+  window.dispatchEvent(new CustomEvent('safa-storage-sync-error', { detail: { collection } }));
+}
+
+function queueSupabaseCollectionDiff(key: string, previous: string | null, next: string): void {
+  if (typeof window === 'undefined' || !supabaseSyncEnabled) return;
+  const collection = SUPABASE_COLLECTIONS[key];
+  if (!collection) return;
+  const oldRecords = new Map(parseLocalRecords(previous).map(record => [String(record.id || 'singleton'), record]));
+  const newRecords = new Map(parseLocalRecords(next).map(record => [String(record.id || 'singleton'), record]));
+
+  for (const [id, record] of newRecords) {
+    if (JSON.stringify(oldRecords.get(id)) === JSON.stringify(record)) continue;
+    void fetch(`/api/v1/admin/data/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, {
+      method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ record })
+    }).then(response => {
+      if (!response.ok) reportStorageSyncError(collection);
+    }).catch(() => reportStorageSyncError(collection));
+  }
+
+  for (const id of oldRecords.keys()) {
+    if (newRecords.has(id)) continue;
+    void fetch(`/api/v1/admin/data/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, {
+      method: 'DELETE', credentials: 'same-origin'
+    }).then(response => {
+      if (!response.ok) reportStorageSyncError(collection);
+    }).catch(() => reportStorageSyncError(collection));
+  }
+}
 
 function getLocal<T>(key: string, fallback: T): T {
   try {
@@ -118,13 +155,115 @@ function getLocal<T>(key: string, fallback: T): T {
 
 function setLocal<T>(key: string, value: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    const previous = localStorage.getItem(key);
+    const next = JSON.stringify(value);
+    localStorage.setItem(key, next);
+    queueSupabaseCollectionDiff(key, previous, next);
   } catch (err) {
     console.warn(`Error writing ${key} to localStorage:`, err);
   }
 }
 
 class StorageService {
+  async hydratePublicContent(): Promise<void> {
+    if (typeof window === 'undefined') return;
+
+    const responses = await Promise.all(Object.entries(PUBLIC_STORAGE_COLLECTIONS).map(async ([key, collection]) => {
+      const response = await fetch(`/api/v1/content/${encodeURIComponent(collection)}`, {
+        credentials: 'same-origin',
+        signal: AbortSignal.timeout(5000)
+      });
+      if (!response.ok) throw new Error('Public Supabase content could not be loaded.');
+      const result = await response.json() as { items: Array<Record<string, unknown>>; truncated: boolean };
+      if (result.truncated || !Array.isArray(result.items)) {
+        throw new Error('Public Supabase content exceeded the response limit.');
+      }
+      return { key, collection, items: result.items };
+    }));
+
+    for (const { key, collection, items } of responses) {
+      const value = collection === 'founder_profile'
+        ? items[0] || INITIAL_FOUNDER_PROFILE
+        : collection === 'bank_config'
+          ? items[0] || INITIAL_BANK_CONFIG
+          : items;
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+  }
+
+  async hydrateFromSupabase(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    const pendingImports: Array<Promise<Response>> = [];
+    for (const [key, collection] of Object.entries(SUPABASE_COLLECTIONS)) {
+      const localValue = localStorage.getItem(key);
+      const localRecords = parseLocalRecords(localValue);
+      const params = new URLSearchParams({ page: '1', pageSize: '100' });
+      const firstResponse = await fetch(`/api/v1/admin/data/${encodeURIComponent(collection)}?${params}`, { credentials: 'same-origin' });
+      if (!firstResponse.ok) throw new Error('Supabase CMS data could not be loaded.');
+      const firstPage = await firstResponse.json() as {
+        items: Array<{ payload: Record<string, unknown> }>;
+        total: number;
+      };
+      const records = firstPage.items.map(item => item.payload);
+      for (let page = 2; records.length < firstPage.total; page += 1) {
+        const pageParams = new URLSearchParams({ page: String(page), pageSize: '100' });
+        const response = await fetch(`/api/v1/admin/data/${encodeURIComponent(collection)}?${pageParams}`, { credentials: 'same-origin' });
+        if (!response.ok) throw new Error('Supabase CMS data could not be loaded.');
+        const result = await response.json() as { items: Array<{ payload: Record<string, unknown> }> };
+        if (!result.items.length) break;
+        records.push(...result.items.map(item => item.payload));
+      }
+
+      const merged = new Map(records.map(record => [String(record.id || 'singleton'), record]));
+      for (const record of localRecords) {
+        const id = String(record.id || 'singleton');
+        if (merged.has(id)) continue;
+        merged.set(id, record);
+        pendingImports.push(fetch(`/api/v1/admin/data/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ record })
+        }));
+      }
+
+      const mergedRecords = [...merged.values()];
+      if (mergedRecords.length) {
+        const value = ['founder_profile', 'bank_config', 'story_drafts'].includes(collection)
+          ? mergedRecords[0]
+          : mergedRecords;
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+
+    }
+
+    supabaseSyncEnabled = true;
+    try {
+      const imported = await Promise.all(pendingImports);
+      if (imported.some(response => !response.ok)) {
+        throw new Error('Some existing browser content could not be copied to Supabase.');
+      }
+    } catch (error) {
+      supabaseSyncEnabled = false;
+      throw error;
+    }
+  }
+
+  exportBrowserBackup(): { format: string; version: number; exportedAt: string; collections: Record<string, unknown> } {
+    const collections: Record<string, unknown> = {};
+    const excluded = new Set(['safa_current_user', 'safa_admin_unlocked', 'safa_admin_users', 'safa_admin_invitations', 'safa_content_migrated_v2']);
+    if (typeof localStorage !== 'undefined') {
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (!key || !key.startsWith('safa_') || excluded.has(key)) continue;
+        const value = localStorage.getItem(key);
+        if (value === null) continue;
+        try { collections[key] = JSON.parse(value); } catch { collections[key] = value; }
+      }
+    }
+    return { format: 'safa-browser-backup', version: 1, exportedAt: new Date().toISOString(), collections };
+  }
+
   // ==========================================
   // ARTICLES CMS
   // ==========================================

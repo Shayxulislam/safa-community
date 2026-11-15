@@ -1,0 +1,8 @@
+# Use a separate Supabase development project. Never use the production key here.
+SUPABASE_URL=https://YOUR_DEVELOPMENT_PROJECT.supabase.co
+SUPABASE_PUBLISHABLE_KEY=YOUR_DEVELOPMENT_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY=
+
+# Optional server-side notification credentials.
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ADMIN_CHAT_ID=

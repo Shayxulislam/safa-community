@@ -30,7 +30,7 @@ export const ContactPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        const result = await response.json().catch(() => null);
+        const result = await response.json().catch(() => null) as { error?: string } | null;
         throw new Error(result?.error || 'Your message could not be delivered.');
       }
     } catch {

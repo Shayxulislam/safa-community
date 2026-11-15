@@ -26,6 +26,13 @@ export const AdminDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [refreshKey, setRefreshKey] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [storageSyncError, setStorageSyncError] = useState(false);
+
+  useEffect(() => {
+    const handleStorageSyncError = () => setStorageSyncError(true);
+    window.addEventListener('safa-storage-sync-error', handleStorageSyncError);
+    return () => window.removeEventListener('safa-storage-sync-error', handleStorageSyncError);
+  }, []);
 
   if (!currentUser || !auth.isAuthenticated()) return null;
 
@@ -67,6 +74,10 @@ export const AdminDashboardPage: React.FC = () => {
 
         {/* Dynamic CMS Tab Viewport */}
         <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
+          {storageSyncError && <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <span>Some changes could not be saved to Supabase. Your browser copy is still present.</span>
+            <button type="button" className="font-semibold underline" onClick={() => window.location.reload()}>Reload from Supabase</button>
+          </div>}
           {activeTab === 'overview' && (
             <AdminOverviewTab
               key={refreshKey}

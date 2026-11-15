@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Settings, CheckCircle2, User, Globe, BarChart2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Settings, CheckCircle2, User, Globe, BarChart2, Download, Upload } from 'lucide-react';
 import { FounderProfile, SocialLink, ImpactStatistic, User as UserType } from '../../types';
 import { storage } from '../../services/storage';
 import { Card } from '../ui/Card';
@@ -21,6 +21,9 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
   const [founderForm, setFounderForm] = useState<FounderProfile>(founder);
   const [socialsList, setSocialsList] = useState<SocialLink[]>(socials);
   const [notice, setNotice] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState('');
+  const [backupBusy, setBackupBusy] = useState(false);
+  const backupInput = useRef<HTMLInputElement>(null);
 
   const showNotice = (msg: string) => {
     setNotice(msg);
@@ -41,6 +44,43 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
     showNotice('Official channel links updated!');
   };
 
+  const handleExportBackup = () => {
+    const backup = storage.exportBrowserBackup();
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `safa-browser-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showNotice('This browser’s SAFA content backup was downloaded. Repeat on each browser that contains admin data.');
+  };
+
+  const handleImportBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setBackupError('');
+    if (file.size > 4 * 1024 * 1024) { setBackupError('Backup files must be smaller than 4 MB.'); return; }
+    setBackupBusy(true);
+    try {
+      const backup = JSON.parse(await file.text()) as { format?: string; version?: number };
+      if (backup.format !== 'safa-browser-backup' || backup.version !== 1) throw new Error('Unsupported SAFA backup file.');
+      const response = await fetch('/api/v1/admin/data/import', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backup)
+      });
+      const result = await response.json().catch(() => ({})) as { totalRecords?: number; error?: string };
+      if (!response.ok) throw new Error(result.error || 'Could not import this backup.');
+      showNotice(`Imported ${result.totalRecords || 0} records. Existing Supabase records and this browser’s backup were left intact.`);
+      onRefresh();
+    } catch (error) {
+      setBackupError(error instanceof Error ? error.message : 'Could not import this backup.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-8 text-left">
       {notice && (
@@ -49,6 +89,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
           <span>{notice}</span>
         </div>
       )}
+      {backupError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{backupError}</p>}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-white border border-[#E5E0D5] shadow-2xs">
@@ -63,6 +104,17 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
           <p className="text-xs text-[#6D6A61] mt-1 max-w-xl leading-relaxed">
             Update founder leadership profile, official social channels, and public impact metrics.
           </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handleExportBackup} icon={<Download className="w-4 h-4" />}>
+            Export browser backup
+          </Button>
+          {(currentUser.role === 'super_admin' || currentUser.role === 'admin') && <>
+            <input ref={backupInput} type="file" accept="application/json,.json" onChange={handleImportBackup} className="hidden" />
+            <Button type="button" variant="outline" size="sm" disabled={backupBusy} onClick={() => backupInput.current?.click()} icon={<Upload className="w-4 h-4" />}>
+              {backupBusy ? 'Importing…' : 'Import backup'}
+            </Button>
+          </>}
         </div>
       </div>
 

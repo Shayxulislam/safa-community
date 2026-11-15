@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   MessageSquare,
   Search,
@@ -13,7 +13,6 @@ import {
   Filter
 } from 'lucide-react';
 import { ContactMessage, User } from '../../types';
-import { storage } from '../../services/storage';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 
@@ -23,13 +22,18 @@ interface AdminMessagesTabProps {
 }
 
 export const AdminMessagesTab: React.FC<AdminMessagesTabProps> = ({
-  currentUser,
+  currentUser: _currentUser,
   onRefresh
 }) => {
-  const [messages, setMessages] = useState<ContactMessage[]>(storage.getContactMessages());
+  const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'new' | 'in_progress' | 'resolved' | 'archived'>('all');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [newCount, setNewCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
   const showNotice = (msg: string) => {
@@ -37,46 +41,60 @@ export const AdminMessagesTab: React.FC<AdminMessagesTabProps> = ({
     setTimeout(() => setNotice(null), 3500);
   };
 
-  const refreshList = () => {
-    const updated = storage.getContactMessages();
-    setMessages(updated);
-    if (selectedMessage) {
-      const refreshedSelected = updated.find(m => m.id === selectedMessage.id) || null;
-      setSelectedMessage(refreshedSelected);
+  const refreshList = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({ page: String(page), pageSize: '25', status: statusFilter, q: search });
+      const response = await fetch(`/api/v1/admin/messages?${params}`, { credentials: 'same-origin' });
+      const result = await response.json().catch(() => ({})) as { items?: ContactMessage[]; total?: number; newCount?: number; error?: string };
+      if (!response.ok) throw new Error(result.error || 'Could not load contact messages.');
+      const updated = result.items || [];
+      setMessages(updated);
+      setTotal(result.total || 0);
+      setNewCount(result.newCount || 0);
+      setSelectedMessage(current => current ? updated.find(message => message.id === current.id) || null : null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Could not load contact messages.');
+    } finally {
+      setLoading(false);
     }
-    onRefresh();
   };
 
-  const handleStatusChange = (id: string, status: ContactMessage['status']) => {
-    storage.updateContactStatus(id, status, currentUser.name);
-    showNotice(`Marked message as ${status.replace('_', ' ')}.`);
-    refreshList();
+  useEffect(() => { void refreshList(); }, [page, search, statusFilter]);
+
+  const handleStatusChange = async (id: string, status: ContactMessage['status']) => {
+    setError('');
+    try {
+      const response = await fetch(`/api/v1/admin/messages/${encodeURIComponent(id)}`, {
+        method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'Could not update message status.');
+      showNotice(`Marked message as ${status.replace('_', ' ')}.`);
+      await refreshList();
+      onRefresh();
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Could not update message status.');
+    }
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this inquiry?')) {
-      storage.deleteContactMessage(id, currentUser.name);
-      if (selectedMessage?.id === id) {
-        setSelectedMessage(null);
-      }
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this inquiry?')) return;
+    setError('');
+    try {
+      const response = await fetch(`/api/v1/admin/messages/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'same-origin' });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'Could not delete contact message.');
+      if (selectedMessage?.id === id) setSelectedMessage(null);
       showNotice('Inquiry deleted.');
-      refreshList();
+      await refreshList();
+      onRefresh();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Could not delete contact message.');
     }
   };
-
-  const filtered = messages.filter(m => {
-    if (statusFilter !== 'all' && m.status !== statusFilter) return false;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      return (
-        m.name.toLowerCase().includes(q) ||
-        m.email.toLowerCase().includes(q) ||
-        m.subject.toLowerCase().includes(q) ||
-        m.message.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
 
   return (
     <div className="space-y-8 text-left">
@@ -104,7 +122,7 @@ export const AdminMessagesTab: React.FC<AdminMessagesTabProps> = ({
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800">
-            {messages.filter(m => m.status === 'new').length} New Inquiries
+            {newCount} New Inquiries
           </span>
         </div>
       </div>
@@ -145,8 +163,9 @@ export const AdminMessagesTab: React.FC<AdminMessagesTabProps> = ({
           </div>
 
           {/* List */}
+          {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
           <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
-            {filtered.map(msg => {
+            {loading ? <p role="status" className="p-8 text-center text-sm text-[#6D6A61]">Loading messages…</p> : messages.map(msg => {
               const isSelected = selectedMessage?.id === msg.id;
               return (
                 <div
@@ -193,12 +212,16 @@ export const AdminMessagesTab: React.FC<AdminMessagesTabProps> = ({
               );
             })}
 
-            {filtered.length === 0 && (
+            {!loading && messages.length === 0 && (
               <div className="p-8 text-center bg-white rounded-2xl border border-[#E5E0D5] text-[#6D6A61] text-xs">
                 No messages found matching your search.
               </div>
             )}
           </div>
+          {!loading && total > 25 && <div className="flex items-center justify-between text-sm">
+            <span className="text-[#6D6A61]">{total} messages</span>
+            <div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page * 25 >= total} onClick={() => setPage(value => value + 1)}>Next</Button></div>
+          </div>}
         </div>
 
         {/* Right Column: Selected Message Details */}

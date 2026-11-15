@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Users2,
   Mail,
@@ -21,29 +21,59 @@ interface AdminVolunteersTabProps {
 }
 
 export const AdminVolunteersTab: React.FC<AdminVolunteersTabProps> = ({
-  currentUser,
+  currentUser: _currentUser,
   onRefresh
 }) => {
-  const volunteers = storage.getVolunteers();
+  const [volunteers, setVolunteers] = useState<VolunteerApplication[]>([]);
   const [filter, setFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selectedVol, setSelectedVol] = useState<VolunteerApplication | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams({ page: String(page), pageSize: '25', status: filter, q: search });
+    setLoading(true);
+    setError('');
+    fetch(`/api/v1/admin/volunteers?${params}`, { credentials: 'same-origin' })
+      .then(async response => {
+        const result = await response.json().catch(() => ({})) as { items?: VolunteerApplication[]; total?: number; error?: string };
+        if (!response.ok) throw new Error(result.error || 'Could not load volunteer applications.');
+        if (active) {
+          setVolunteers(result.items || []);
+          setTotal(result.total || 0);
+        }
+      })
+      .catch(loadError => { if (active) setError(loadError instanceof Error ? loadError.message : 'Could not load volunteer applications.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [filter, page, search]);
 
   const showNotice = (msg: string) => {
     setNotice(msg);
     setTimeout(() => setNotice(null), 3000);
   };
 
-  const handleStatusChange = (id: string, status: VolunteerApplication['status']) => {
-    storage.updateVolunteerStatus(id, status, currentUser.name);
-    onRefresh();
-    showNotice(`Application marked as "${status}".`);
+  const handleStatusChange = async (id: string, status: VolunteerApplication['status']) => {
+    setError('');
+    try {
+      const response = await fetch(`/api/v1/admin/volunteers/${encodeURIComponent(id)}`, {
+        method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'Could not update volunteer status.');
+      setVolunteers(items => items.map(item => item.id === id ? { ...item, status } : item));
+      onRefresh();
+      showNotice(`Application marked as "${status}".`);
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Could not update volunteer status.');
+    }
   };
-
-  const filtered = volunteers.filter(v => {
-    if (filter === 'all') return true;
-    return v.status === filter;
-  });
 
   return (
     <div className="space-y-8 text-left">
@@ -71,8 +101,12 @@ export const AdminVolunteersTab: React.FC<AdminVolunteersTabProps> = ({
       </div>
 
       {/* Filter tabs */}
+      <div className="relative max-w-md">
+        <Search className="w-4 h-4 text-[#9C988D] absolute left-3.5 top-3" />
+        <input value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="Search name, email or phone" className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E5E0D5] bg-white text-sm" />
+      </div>
       <div className="flex items-center gap-2 text-xs">
-        {['all', 'new', 'reviewed', 'accepted', 'rejected'].map(status => (
+        {['all', 'new', 'reviewed', 'contacted', 'accepted', 'rejected', 'archived'].map(status => (
           <button
             key={status}
             onClick={() => setFilter(status)}
@@ -89,11 +123,12 @@ export const AdminVolunteersTab: React.FC<AdminVolunteersTabProps> = ({
 
       {/* Applications List */}
       <Card className="p-6 bg-white border border-[#E5E0D5] rounded-3xl shadow-2xs space-y-4">
-        {filtered.length === 0 ? (
+        {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+        {loading ? <p role="status" className="py-8 text-center text-sm text-[#6D6A61]">Loading applications…</p> : volunteers.length === 0 ? (
           <p className="text-xs text-[#6D6A61] py-8 text-center">No volunteer applications in this filter.</p>
         ) : (
           <div className="space-y-3">
-            {filtered.map(vol => (
+            {volunteers.map(vol => (
               <div
                 key={vol.id}
                 className="p-4 rounded-2xl border border-[#E5E0D5] bg-[#FDFCF9] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
@@ -178,6 +213,10 @@ export const AdminVolunteersTab: React.FC<AdminVolunteersTabProps> = ({
             ))}
           </div>
         )}
+        {!loading && total > 25 && <div className="flex items-center justify-between border-t border-[#E5E0D5] pt-4 text-sm">
+          <span className="text-[#6D6A61]">{total} applications</span>
+          <div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page * 25 >= total} onClick={() => setPage(value => value + 1)}>Next</Button></div>
+        </div>}
       </Card>
     </div>
   );

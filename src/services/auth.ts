@@ -1,4 +1,5 @@
 import { User, UserRole, PermissionKey } from '../types';
+import { storage } from './storage';
 
 export const ALL_PERMISSIONS: { key: PermissionKey; label: string; group: string; description: string }[] = [
   // Content
@@ -329,13 +330,24 @@ let restorePending: Promise<User | null> | null = null;
 let authVersion = 0;
 const changed = () => window.dispatchEvent(new Event('safa-auth-changed'));
 class AdminRequestError extends Error { constructor(public status: number, message: string) { super(message); } }
+async function hydrateSupabaseAdminContent(): Promise<void> {
+  try {
+    const response = await fetch('/api/v1/admin/data/articles?page=1&pageSize=1', { credentials: 'same-origin' });
+    if (!response.ok) throw new Error('Supabase CMS data could not be loaded.');
+    await storage.hydrateFromSupabase();
+  } catch {
+    window.dispatchEvent(new CustomEvent('safa-storage-sync-error', {
+      detail: { collection: 'cms' }
+    }));
+  }
+}
 async function adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const requestedAtVersion = authVersion;
   const response = await fetch(`/api/v1/admin${path}`, {
     ...options, credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...options.headers }
   });
-  const body = await response.json().catch(() => ({}));
+  const body = await response.json().catch(() => ({})) as { error?: string };
   if (!response.ok) {
     if (response.status === 401 && requestedAtVersion === authVersion) { authVersion++; currentUser = null; changed(); }
     throw new AdminRequestError(response.status, body.error || 'Administrator request failed.');
@@ -350,7 +362,14 @@ export const auth = {
     if (restorePending) return restorePending;
     const startedAtVersion = authVersion;
     restorePending = (async () => {
-      try { const result = await adminRequest<{ user: User }>('/auth/session'); if (startedAtVersion === authVersion) currentUser = result.user; return currentUser; }
+      try {
+        const result = await adminRequest<{ user: User }>('/auth/session');
+        if (startedAtVersion === authVersion) {
+          currentUser = result.user;
+          await hydrateSupabaseAdminContent();
+        }
+        return currentUser;
+      }
       catch (error) { if (error instanceof AdminRequestError && error.status === 401) return startedAtVersion === authVersion ? null : currentUser; throw error; }
       finally { restorePending = null; }
     })();
@@ -360,6 +379,7 @@ export const auth = {
     try {
       const result = await adminRequest<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ adminType, password }) });
       authVersion++; currentUser = result.user; signInPath = '/admin/login'; changed();
+      await hydrateSupabaseAdminContent();
       return { success: true, user: currentUser };
     } catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Sign-in failed.' }; }
   },

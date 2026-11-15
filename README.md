@@ -25,26 +25,19 @@ A youth-led community support and charity platform for Uzbekistan, founded by Na
 ### Prerequisites
 
 - Node.js 24 LTS
-- npm, pnpm, yarn, or bun
+- npm (the committed `package-lock.json` is the supported lockfile)
 
 ### Installation
 
 ```bash
-# 1. Clone or extract the repository
-unzip SAFA_Supabase_Auth.zip
-cd SAFA-Supabase-Auth
-
-# 2. Install dependencies
-npm install
-
-# 3. Optional public Supabase and Telegram configuration
-cp .env.example .env
-
-# 4. Start the development server
-npm run dev
+# Clone or extract the repository, then enter its root directory.
+npm ci
+cp .dev.vars.example .dev.vars
+# Fill in the development Supabase values in .dev.vars.
+npm run cf:dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:8787](http://localhost:8787) in your browser.
 
 ### Building for Production
 
@@ -56,62 +49,55 @@ npm run build
 npm start
 ```
 
-## Supabase Auth and protected routes
+## Cloudflare Worker + Supabase
 
-Staff enter **Owner or Admin + password** at `/admin/login`. No email or ID field is shown. Supabase uses two internal Auth identities; no shared credentials are shipped in source or browser storage.
+Cloudflare Workers serves the Vite-built React SPA and the Hono `/api/*` routes. Supabase remains the only application backend: Supabase Auth and its existing `safa-staff-auth` Edge Function handle Owner/Admin login; PostgreSQL stores volunteer applications, contact messages, rate-limit buckets, and CMS records. D1, Drizzle, and Better Auth are not part of this architecture. Vercel configuration and the legacy Express/Supabase adapter remain available as a rollback path.
 
-Implemented boundaries:
+The Worker uses the Supabase secret key only on the server. Its staff-auth calls use the publishable key, while staff authorization is validated through the existing Supabase Edge Function and live Supabase sessions. Admin APIs validate same-origin writes, body size, input fields, status values, pagination, and rate limits before accessing data. The `safa_content_records` table is RLS-enabled and unavailable to `anon` and `authenticated`; the Worker accesses it with its server-only secret key after checking the staff session.
 
-- `/admin` and `/admin/dashboard` wait for server session validation; outages show Retry, and unsigned users go to login.
-- Express proxies the deployed `safa-staff-auth` Edge Function. Access and rotating refresh tokens stay in HttpOnly, SameSite=Strict cookies, with Secure on HTTPS/Vercel. API responses never return tokens to browser JavaScript.
-- Each protected API validates Supabase identity and the current `auth.sessions` row. Database role membership comes from a private allowlist, never from user-editable metadata.
-- Owner can reset either password using the **current Owner password**. Admin can change only Admin. Password changes revoke every session belonging to the selected type, with a final global Auth sign-out after the password update; an Owner resetting Admin stays signed in.
-- Passwords must differ and contain 10–128 characters. Durable database throttling protects login and password changes.
-- Private tables use RLS and explicit grants. Retired custom password/session tables deny all browser roles. RLS-without-policy advisor INFO findings are intentional for these private/retired tables.
-- The Vercel entry `api/index.ts` imports the side-effect-free `server/app.ts`; native ESM import paths are tested without tsx. The server bundle is built into `build/`, outside publicly served `dist/`. The old public source archive is removed.
+### Local development
 
-### Current project status
-
-This source package includes the API/runtime split, Vercel rewrites and Owner/Admin updates from your latest uploaded `SAFA - community(1).zip`, on top of GitHub `main` commit `7a75562`. Production shows the same Owner/Admin selector; its exact deployed commit could not be verified because Vercel team access returns 403. If your local project has additional commits or uncommitted changes, merge the Auth update on a separate branch; do not overwrite your working folder.
-
-The two SQL migrations and `safa-staff-auth` Edge Function have been applied to Supabase project `esekwdgunftouzkcrqlx`. **The initial Auth users are not created yet.** Until provisioning finishes, correct-looking credentials still fail login. GitHub push is blocked because this workspace has no GitHub credentials. No production Vercel deployment was performed; the connected Vercel account returns 403 for the existing team.
-
-### Create the two initial Auth users once
-
-Use the official Supabase Admin client locally; there is no public provisioning endpoint.
+Use a separate Supabase development project. Copy `.dev.vars.example` to `.dev.vars` and fill in that project's URL, publishable key, and secret key. Keep `.dev.vars` local and never use a production secret for local development.
 
 ```bash
-npm ci
-cp scripts/setup-staff.env.example .env.setup.local
-# Edit .env.setup.local in VS Code, then:
-npm run setup:staff
+npm install
+cp .dev.vars.example .dev.vars
+# Fill the local Supabase values in .dev.vars
+npm run cf:dev
 ```
 
-In the ignored `.env.setup.local`, enter a Supabase **secret/service-role key** from Project Settings → API Keys and two different initial passwords. Keep this file local. Do not paste its contents into chat, GitHub, Vercel frontend variables, or terminal command arguments. The script creates confirmed internal identities and registers them through a service-role-only RPC. Reruns preserve existing users and passwords. Remove the local setup file after verifying sign-in. The Vercel app itself needs only the public URL/key shown in `.env.example`; privileged keys stay inside Supabase's runtime.
+The project requires Node.js 22.12 or newer for the installed Wrangler and Supabase SDK versions. `npm run build:worker` builds the SPA and performs a Wrangler dry run against both development and production Worker environments; it does not deploy.
 
-Alternatively, create confirmed users in Supabase Authentication → Users using `owner@staff.safa-community.invalid` and `admin@staff.safa-community.invalid`, then register those existing users in the private allowlist. These internal addresses are never entered by staff at login and cannot receive recovery emails; an Owner changes passwords in Security, and a project administrator can recover Owner access through Supabase.
+### Supabase schema prerequisite
 
-For another Supabase project, apply the migrations and deploy the function using the Supabase CLI, then set the new public URL/key in server environment variables. Use a separate project for previews if they must not share production staff sessions.
+The migration `supabase/migrations/20261115000000_safa_content_records.sql` adds the CMS record table and indexes. It does not drop or recreate existing tables or accounts. The migration has been applied to the connected production project. Verification confirmed `safa_content_records` exists with RLS enabled, no access for `anon` or `authenticated`, and access for `service_role`. The table currently has zero rows. Existing staff-auth functions, rate-limit RPC, and volunteer/contact tables remain in place.
 
-### Verification
+Before release, review the remote migration history against the local migration files: the hosted project has existing migration versions that do not exactly match the two legacy local staff migration filenames. Do not replay or reset those migrations to resolve the history difference.
 
-```bash
-npm test
-npm run lint
-npm run build
-# Optional browser smoke checks, with mocked authentication responses:
-npx playwright install chromium
-npm run test:browser
-```
+### Cloudflare configuration and release
 
-Verified for this update: 22/22 automated checks, TypeScript checking, production build and browser smoke checks passed. `npm audit fix` applied compatible dependency patches; the audit reports zero known vulnerabilities. The build still reports a bundle-size warning.
+`wrangler.jsonc` defines a development Worker (`safa-community-dev`) and a separate production Worker (`safa-community`). SPA navigation falls back to `index.html`; `/api/*` runs through the Worker first. Production repeats its own asset binding and environment variables because Wrangler environments do not inherit bindings or vars.
 
-The tests cover authorization, cookie/token handling, refresh, outages and password-change rules using a mocked SDK boundary. Live anonymous denial checks passed. A successful live Owner/Admin login and live password-change test remain blocked until initial users exist. Existing CMS content storage is unchanged: it still uses this repository's browser storage and is not migrated into Supabase by the Auth work.
+1. Release checks passed: lint, all 25 Node tests, production build, browser smoke test, and Wrangler production dry-run using Node.js 24.
+2. The production `SUPABASE_SECRET_KEY` is configured as a Cloudflare Worker secret. Never place it in `wrangler.jsonc`, `.env.example`, frontend variables, or GitHub source.
+3. The production publishable key and project URL are configured in `wrangler.jsonc`; production repeats its own bindings because Wrangler environments do not inherit bindings or vars.
+4. The additive Supabase migration is applied; `safa_content_records` exists with RLS enabled and no `anon`/`authenticated` grants.
+5. The production Worker is deployed at [https://safa-community.yunusaliyevislomjon08.workers.dev](https://safa-community.yunusaliyevislomjon08.workers.dev). Cloudflare deployment version: `7eaacd27-3244-47d8-8d6f-1866f99b9b3a`.
+6. No custom domain or DNS change has been made. Add the custom domain under the Worker’s Cloudflare domain settings when the domain is chosen. Enable appropriate Cloudflare WAF managed rules for the zone. Public forms currently use server-side validation, honeypot fields, and Supabase-backed rate limits; Turnstile is not enabled because no site/secret keys have been configured.
+7. The repository CI workflow at `.github/workflows/ci.yml` runs tests, TypeScript checking, and the production build on pull requests and pushes to `main`. Connect the GitHub repository through Cloudflare Workers Builds after deciding which branch should publish. Keep production deployment approval in the release process; do not configure an unreviewed automatic production cutover.
+
+### Rollback
+
+Keep the existing Vercel deployment and Supabase Auth project active during the Cloudflare rollout. If a Cloudflare release fails, use Cloudflare deployment history to roll back the Worker and route traffic to the existing Vercel deployment. Do not delete Supabase users, tables, storage objects, or the Vercel project as part of rollback.
+
+### Verification status
+
+Verification: all 25 Node tests pass, lint/TypeScript checks pass, the production build passes, and the Playwright auth/mobile smoke test passes. The browser test mocks authentication and does not verify live Supabase sessions or CRUD. Wrangler production dry-run and deployment passed using Node.js 24. A direct live HTTP probe returned Cloudflare error 1010 from this environment, so public route behavior still needs confirmation from a normal browser/network. `npm audit` could not reach the npm registry (`EAI_AGAIN`), so no current vulnerability result is available.
 
 ## Tech Stack
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS v4, Motion (framer-motion), Lucide Icons, React Router v7.
-- **Backend / Server**: Express, TypeScript, Vite SSR middleware for dev, esbuild bundling for production.
+- **Backend / Server**: Cloudflare Workers with Hono APIs and Supabase Auth, PostgreSQL, and the Supabase JavaScript SDK. Legacy Express/Supabase API deployment is retained for rollback.
 - **Brand Assets**: Custom SVG vector logo (`/public/safa-logo.svg`), high-resolution official portrait (`/public/nargiza_ceo.jpg`).
 
 ---

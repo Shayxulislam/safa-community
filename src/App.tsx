@@ -1,37 +1,37 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 
 // Pages
 import { HomePage } from './pages/HomePage';
-import { AboutPage } from './pages/AboutPage';
-import { MissionPage } from './pages/MissionPage';
-import { ProgramsPage } from './pages/ProgramsPage';
-import { PieceOfWorkPage } from './pages/PieceOfWorkPage';
-import { WorkDetailPage } from './pages/WorkDetailPage';
-import { SupportPage } from './pages/SupportPage';
-import { ContributionSuccessPage } from './pages/ContributionSuccessPage';
-import { ContributionHistoryPage } from './pages/ContributionHistoryPage';
-import { ImpactPage } from './pages/ImpactPage';
-import { StoriesPage } from './pages/StoriesPage';
-import { HistoryPage } from './pages/HistoryPage';
-import { LinksPage } from './pages/LinksPage';
-import { VolunteerPage } from './pages/VolunteerPage';
-import { ContactPage } from './pages/ContactPage';
-import { TransparencyPage } from './pages/TransparencyPage';
-import { PrivacyPage } from './pages/PrivacyPage';
-import { TermsPage } from './pages/TermsPage';
-import { AccessibilityPage } from './pages/AccessibilityPage';
-import { AdminLoginPage } from './pages/AdminLoginPage';
-import { AdminDashboardPage } from './pages/AdminDashboardPage';
+const AboutPage = lazy(() => import('./pages/AboutPage').then(module => ({ default: module.AboutPage })));
+const MissionPage = lazy(() => import('./pages/MissionPage').then(module => ({ default: module.MissionPage })));
+const ProgramsPage = lazy(() => import('./pages/ProgramsPage').then(module => ({ default: module.ProgramsPage })));
+const PieceOfWorkPage = lazy(() => import('./pages/PieceOfWorkPage').then(module => ({ default: module.PieceOfWorkPage })));
+const WorkDetailPage = lazy(() => import('./pages/WorkDetailPage').then(module => ({ default: module.WorkDetailPage })));
+const SupportPage = lazy(() => import('./pages/SupportPage').then(module => ({ default: module.SupportPage })));
+const ContributionSuccessPage = lazy(() => import('./pages/ContributionSuccessPage').then(module => ({ default: module.ContributionSuccessPage })));
+const ContributionHistoryPage = lazy(() => import('./pages/ContributionHistoryPage').then(module => ({ default: module.ContributionHistoryPage })));
+const ImpactPage = lazy(() => import('./pages/ImpactPage').then(module => ({ default: module.ImpactPage })));
+const StoriesPage = lazy(() => import('./pages/StoriesPage').then(module => ({ default: module.StoriesPage })));
+const HistoryPage = lazy(() => import('./pages/HistoryPage').then(module => ({ default: module.HistoryPage })));
+const LinksPage = lazy(() => import('./pages/LinksPage').then(module => ({ default: module.LinksPage })));
+const VolunteerPage = lazy(() => import('./pages/VolunteerPage').then(module => ({ default: module.VolunteerPage })));
+const ContactPage = lazy(() => import('./pages/ContactPage').then(module => ({ default: module.ContactPage })));
+const TransparencyPage = lazy(() => import('./pages/TransparencyPage').then(module => ({ default: module.TransparencyPage })));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(module => ({ default: module.PrivacyPage })));
+const TermsPage = lazy(() => import('./pages/TermsPage').then(module => ({ default: module.TermsPage })));
+const AccessibilityPage = lazy(() => import('./pages/AccessibilityPage').then(module => ({ default: module.AccessibilityPage })));
+const AdminLoginPage = lazy(() => import('./pages/AdminLoginPage').then(module => ({ default: module.AdminLoginPage })));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then(module => ({ default: module.AdminDashboardPage })));
 import { ProtectedRoute } from './components/admin/ProtectedRoute';
 import { Navigate } from 'react-router-dom';
-import { ArticlesPage } from './pages/ArticlesPage';
-import { EventsPage } from './pages/EventsPage';
-import { ArticleDetailPage } from './pages/ArticleDetailPage';
-import { EventDetailPage } from './pages/EventDetailPage';
-import { NotFoundPage } from './pages/NotFoundPage';
+const ArticlesPage = lazy(() => import('./pages/ArticlesPage').then(module => ({ default: module.ArticlesPage })));
+const EventsPage = lazy(() => import('./pages/EventsPage').then(module => ({ default: module.EventsPage })));
+const ArticleDetailPage = lazy(() => import('./pages/ArticleDetailPage').then(module => ({ default: module.ArticleDetailPage })));
+const EventDetailPage = lazy(() => import('./pages/EventDetailPage').then(module => ({ default: module.EventDetailPage })));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
 import { SeoHead } from './components/SeoHead';
 
 // Auto scroll to top on route change
@@ -101,6 +101,7 @@ export default function App() {
 
         {/* Main Content View */}
         <main className="flex-grow">
+          <Suspense fallback={<div role="status" className="flex min-h-[50vh] items-center justify-center text-sm text-[#6D6A61]">Loading page...</div>}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
@@ -131,6 +132,7 @@ export default function App() {
             <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboardPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
+          </Suspense>
         </main>
 
         {/* Global Footer */}

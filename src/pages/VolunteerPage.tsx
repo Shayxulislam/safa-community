@@ -48,8 +48,7 @@ export const VolunteerPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Send to server endpoint
-      await fetch('/api/v1/volunteers', {
+      const response = await fetch('/api/v1/volunteers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -63,22 +62,25 @@ export const VolunteerPage: React.FC = () => {
           isLegalAgeConfirmed: isConfirmedAge
         })
       });
-    } catch {
-      // Network / offline fallback
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'Your application could not be submitted. Please try again.');
+
+      storage.addVolunteer({
+        fullName,
+        email,
+        phone: phoneOrTelegram,
+        city,
+        skills,
+        availability,
+        interests
+      });
+
+      setIsSuccess(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Your application could not be submitted. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    storage.addVolunteer({
-      fullName,
-      email,
-      phoneOrTelegram,
-      city,
-      skills,
-      availability,
-      interests
-    });
-
-    setIsSubmitting(false);
-    setIsSuccess(true);
   };
 
   return (
